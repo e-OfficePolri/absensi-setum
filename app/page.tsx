@@ -10,6 +10,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [daftarAbsen, setDaftarAbsen] = useState<any[]>([]);
 
+  // Mengambil data dari Firebase secara real-time
   useEffect(() => {
     const q = query(collection(db, 'absensi_harian'), orderBy('waktu_masuk', 'desc'));
     
@@ -24,6 +25,7 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
+  // Fungsi untuk menyimpan absen baru
   const handleAbsen = async () => {
     if (!nama) {
       alert('Mohon masukkan nama atau NRP terlebih dahulu!');
@@ -31,19 +33,19 @@ export default function Home() {
     }
     
     setLoading(true);
-    setStatus('Sedang menyimpan data ke database...');
+    setStatus('Sedang menyimpan data...');
 
     try {
       await addDoc(collection(db, 'absensi_harian'), {
         nama_pegawai: nama,
-        waktu_masuk: new Date().toISOString(), 
+        waktu_masuk: new Date().toISOString(), // Menyimpan waktu saat ini
       });
       
-      setStatus(`Berhasil absen masuk untuk: ${nama}!`);
+      setStatus(`Berhasil absen untuk: ${nama}!`);
       setNama(''); 
     } catch (error) {
       console.error(error);
-      setStatus('Gagal menyimpan absen. Pastikan koneksi internet lancar.');
+      setStatus('Gagal menyimpan data.');
     } finally {
       setLoading(false);
     }
@@ -73,7 +75,8 @@ export default function Home() {
           color: 'white', 
           border: 'none', 
           borderRadius: '5px', 
-          fontWeight: 'bold' 
+          fontWeight: 'bold',
+          cursor: 'pointer'
         }}
       >
         {loading ? 'Menyimpan...' : 'Absen Masuk'}
@@ -90,7 +93,7 @@ export default function Home() {
           <thead>
             <tr style={{ background: '#f4f4f4', borderBottom: '2px solid #ddd' }}>
               <th style={{ padding: '12px' }}>Nama Pegawai</th>
-              <th style={{ padding: '12px' }}>Waktu Masuk</th>
+              <th style={{ padding: '12px' }}>Tanggal & Waktu</th>
             </tr>
           </thead>
           <tbody>
@@ -105,7 +108,12 @@ export default function Home() {
                 <tr key={absen.id} style={{ borderBottom: '1px solid #eee' }}>
                   <td style={{ padding: '12px' }}>{absen.nama_pegawai}</td>
                   <td style={{ padding: '12px' }}>
-                    {new Date(absen.waktu_masuk).toLocaleTimeString('id-ID')}
+                    {absen.waktu_masuk 
+                      ? new Date(absen.waktu_masuk).toLocaleString('id-ID', {
+                          dateStyle: 'short',
+                          timeStyle: 'medium'
+                        })
+                      : '-'}
                   </td>
                 </tr>
               ))
