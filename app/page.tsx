@@ -1,29 +1,57 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { db } from './firebase'; 
+import { db, auth } from './firebase'; // Tambahkan auth di sini
 import { collection, addDoc, onSnapshot, query, orderBy } from 'firebase/firestore'; 
+import { onAuthStateChanged, signOut } from 'firebase/auth'; // Alat keamanan Firebase
+import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function Home() {
+  // State untuk keamanan
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const router = useRouter();
+
+  // State aplikasi absensi (sama seperti sebelumnya)
   const [nama, setNama] = useState('');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [daftarAbsen, setDaftarAbsen] = useState<any[]>([]);
   const [filterTanggal, setFilterTanggal] = useState('');
 
-  // Mengambil data dari Firebase secara real-time
+  // EFEK KEAMANAN: Cek apakah user sudah login saat halaman dimuat
   useEffect(() => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // Jika ada user (sudah login), izinkan masuk dan matikan loading
+        setIsCheckingAuth(false);
+      } else {
+        // Jika tidak ada user, tendang ke halaman login
+        router.push('/login');
+      }
+    });
+    return () => unsubscribeAuth();
+  }, [router]);
+
+  // EFEK DATA: Mengambil data dari Firebase secara real-time
+  useEffect(() => {
+    if (isCheckingAuth) return; // Jangan ambil data kalau belum dipastikan aman
     const q = query(collection(db, 'absensi_harian'), orderBy('waktu_masuk', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribeData = onSnapshot(q, (snapshot) => {
       setDaftarAbsen(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });
-    return () => unsubscribe();
-  }, []);
+    return () => unsubscribeData();
+  }, [isCheckingAuth]);
 
-  // Fungsi untuk menyimpan absen baru
+  // Fungsi Logout
+  const handleLogout = async () => {
+    await signOut(auth);
+    router.push('/login'); // Kembali ke halaman login setelah keluar
+  };
+
+  // ... (Fungsi handleAbsen, unduhExcel, unduhPDF tetap sama persis seperti kode sebelumnya)
   const handleAbsen = async () => {
     if (!nama) {
       alert('Mohon masukkan nama atau NRP terlebih dahulu!');
@@ -45,13 +73,11 @@ export default function Home() {
     }
   };
 
-  // Filter data berdasarkan tanggal yang dipilih
   const daftarAbsenTerfilter = daftarAbsen.filter((absen) => {
     if (!filterTanggal) return true;
     return absen.waktu_masuk?.split('T')[0] === filterTanggal;
   });
 
-  // Fungsi Unduh Excel (.xlsx)
   const unduhExcel = () => {
     const dataExcel = daftarAbsenTerfilter.map((absen) => ({
       "Nama Pegawai": absen.nama_pegawai,
@@ -63,7 +89,6 @@ export default function Home() {
     XLSX.writeFile(workbook, "Laporan_Absensi_Setum.xlsx");
   };
 
-  // Fungsi Unduh PDF
   const unduhPDF = () => {
     const doc = new jsPDF();
     doc.text("Laporan Absensi Setum Polri", 14, 15);
@@ -79,21 +104,25 @@ export default function Home() {
     doc.save("Laporan_Absensi_Setum.pdf");
   };
 
+  // Layar putih sementara selagi sistem mengecek gembok keamanan
+  if (isCheckingAuth) {
+    return <div style={{ padding: '2rem', textAlign: 'center' }}>Memeriksa keamanan...</div>;
+  }
+
   return (
     <main style={{ padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
-      <h1>Absensi Setum Polri</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1>Absensi Setum Polri</h1>
+        {/* Tombol Logout Baru */}
+        <button onClick={handleLogout} style={{ padding: '0.6rem 1rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
+          Logout
+        </button>
+      </div>
       
       {/* Input Absen */}
       <div style={{ margin: '1rem 0' }}>
-        <input 
-          type="text" placeholder="Masukkan Nama/NRP" value={nama} 
-          onChange={(e) => setNama(e.target.value)} disabled={loading} 
-          style={{ padding: '0.8rem', width: '100%', maxWidth: '300px', borderRadius: '5px', border: '1px solid #ccc' }} 
-        />
-        <button 
-          onClick={handleAbsen} disabled={loading} 
-          style={{ marginLeft: '10px', padding: '0.8rem 1.5rem', background: '#001f3f', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
-        >
+        <input type="text" placeholder="Masukkan Nama/NRP" value={nama} onChange={(e) => setNama(e.target.value)} disabled={loading} style={{ padding: '0.8rem', width: '100%', maxWidth: '300px', borderRadius: '5px', border: '1px solid #ccc' }} />
+        <button onClick={handleAbsen} disabled={loading} style={{ marginLeft: '10px', padding: '0.8rem 1.5rem', background: '#001f3f', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
           {loading ? '...' : 'Absen'}
         </button>
       </div>
