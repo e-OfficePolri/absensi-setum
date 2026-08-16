@@ -1,43 +1,37 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { db, auth } from './firebase'; // Tambahkan auth di sini
+import { db, auth } from './firebase'; 
 import { collection, addDoc, onSnapshot, query, orderBy } from 'firebase/firestore'; 
-import { onAuthStateChanged, signOut } from 'firebase/auth'; // Alat keamanan Firebase
+import { onAuthStateChanged, signOut } from 'firebase/auth'; 
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function Home() {
-  // State untuk keamanan
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const router = useRouter();
 
-  // State aplikasi absensi (sama seperti sebelumnya)
   const [nama, setNama] = useState('');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [daftarAbsen, setDaftarAbsen] = useState<any[]>([]);
   const [filterTanggal, setFilterTanggal] = useState('');
 
-  // EFEK KEAMANAN: Cek apakah user sudah login saat halaman dimuat
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // Jika ada user (sudah login), izinkan masuk dan matikan loading
         setIsCheckingAuth(false);
       } else {
-        // Jika tidak ada user, tendang ke halaman login
         router.push('/login');
       }
     });
     return () => unsubscribeAuth();
   }, [router]);
 
-  // EFEK DATA: Mengambil data dari Firebase secara real-time
   useEffect(() => {
-    if (isCheckingAuth) return; // Jangan ambil data kalau belum dipastikan aman
+    if (isCheckingAuth) return; 
     const q = query(collection(db, 'absensi_harian'), orderBy('waktu_masuk', 'desc'));
     const unsubscribeData = onSnapshot(q, (snapshot) => {
       setDaftarAbsen(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
@@ -45,18 +39,45 @@ export default function Home() {
     return () => unsubscribeData();
   }, [isCheckingAuth]);
 
-  // Fungsi Logout
   const handleLogout = async () => {
     await signOut(auth);
-    router.push('/login'); // Kembali ke halaman login setelah keluar
+    router.push('/login'); 
   };
 
-  // ... (Fungsi handleAbsen, unduhExcel, unduhPDF tetap sama persis seperti kode sebelumnya)
+  // FUNGSI HANDLE ABSEN YANG DIPERBARUI
   const handleAbsen = async () => {
+    // 1. Cek apakah kotak nama kosong
     if (!nama) {
       alert('Mohon masukkan nama atau NRP terlebih dahulu!');
       return;
     }
+
+    // --- MULAI FITUR VALIDASI ABSEN GANDA ---
+    
+    // A. Dapatkan format tanggal hari ini (Contoh: "2026-08-17")
+    const tanggalHariIni = new Date().toISOString().split('T')[0];
+
+    // B. Cek apakah sudah ada data dengan nama yang sama di hari yang sama
+    const sudahAbsen = daftarAbsen.some((absen) => {
+      const tanggalAbsen = absen.waktu_masuk ? absen.waktu_masuk.split('T')[0] : '';
+      
+      // Kita ubah ke huruf kecil semua (toLowerCase) agar pengecekan lebih akurat
+      // (Misal: "Irfan" akan dianggap sama dengan "irfan")
+      const namaSama = absen.nama_pegawai.toLowerCase() === nama.toLowerCase();
+      const hariSama = tanggalAbsen === tanggalHariIni;
+
+      return namaSama && hariSama;
+    });
+
+    // C. Hentikan proses jika ternyata sudah absen
+    if (sudahAbsen) {
+      alert(`Maaf, data atas nama "${nama}" sudah melakukan absensi hari ini!`);
+      setNama(''); // Kosongkan kolom input
+      return; // 'return' di sini berfungsi membatalkan jalannya kode di bawah ini
+    }
+
+    // --- AKHIR FITUR VALIDASI ABSEN GANDA ---
+
     setLoading(true);
     setStatus('Sedang menyimpan...');
     try {
@@ -104,7 +125,6 @@ export default function Home() {
     doc.save("Laporan_Absensi_Setum.pdf");
   };
 
-  // Layar putih sementara selagi sistem mengecek gembok keamanan
   if (isCheckingAuth) {
     return <div style={{ padding: '2rem', textAlign: 'center' }}>Memeriksa keamanan...</div>;
   }
@@ -113,13 +133,11 @@ export default function Home() {
     <main style={{ padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>Absensi Setum Polri</h1>
-        {/* Tombol Logout Baru */}
         <button onClick={handleLogout} style={{ padding: '0.6rem 1rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
           Logout
         </button>
       </div>
       
-      {/* Input Absen */}
       <div style={{ margin: '1rem 0' }}>
         <input type="text" placeholder="Masukkan Nama/NRP" value={nama} onChange={(e) => setNama(e.target.value)} disabled={loading} style={{ padding: '0.8rem', width: '100%', maxWidth: '300px', borderRadius: '5px', border: '1px solid #ccc' }} />
         <button onClick={handleAbsen} disabled={loading} style={{ marginLeft: '10px', padding: '0.8rem 1.5rem', background: '#001f3f', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
@@ -127,19 +145,16 @@ export default function Home() {
         </button>
       </div>
 
-      {/* Filter Tanggal */}
       <div style={{ marginTop: '2rem', background: '#f9f9f9', padding: '1rem', borderRadius: '8px', maxWidth: '600px' }}>
         <label>Filter Tanggal:</label>
         <input type="date" value={filterTanggal} onChange={(e) => setFilterTanggal(e.target.value)} style={{ marginLeft: '10px', padding: '0.5rem' }} />
       </div>
 
-      {/* Tombol Unduh */}
       <div style={{ marginTop: '2rem', display: 'flex', gap: '10px' }}>
         <button onClick={unduhExcel} style={{ padding: '0.6rem', background: '#28a745', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Unduh Excel (.xlsx)</button>
         <button onClick={unduhPDF} style={{ padding: '0.6rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Unduh PDF</button>
       </div>
       
-      {/* Tabel */}
       <table style={{ width: '100%', maxWidth: '600px', borderCollapse: 'collapse', marginTop: '1rem' }}>
         <thead>
           <tr style={{ background: '#f4f4f4' }}>
