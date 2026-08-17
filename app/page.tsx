@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { db, auth } from './firebase'; 
-import { collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc } from 'firebase/firestore'; 
+// Menambahkan 'updateDoc' untuk fitur edit data
+import { collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc, updateDoc } from 'firebase/firestore'; 
 import { onAuthStateChanged, signOut } from 'firebase/auth'; 
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-// Mengimpor pustaka Toast
 import toast, { Toaster } from 'react-hot-toast';
 
 export default function Home() {
@@ -56,7 +56,6 @@ export default function Home() {
 
   const handleAbsen = async () => {
     if (!nama) {
-      // Menggunakan Toast Error untuk kolom kosong
       toast.error('Mohon masukkan nama atau NRP terlebih dahulu!');
       return;
     }
@@ -70,14 +69,12 @@ export default function Home() {
     });
 
     if (sudahAbsen) {
-      // Menggunakan Toast Error untuk absen ganda
       toast.error(`Maaf, "${nama}" sudah melakukan absensi hari ini!`);
       setNama(''); 
       return; 
     }
 
     setLoading(true);
-    // Menggunakan Toast Loading
     const loadingToast = toast.loading('Sedang menyimpan data...');
     
     try {
@@ -85,7 +82,6 @@ export default function Home() {
         nama_pegawai: nama,
         waktu_masuk: new Date().toISOString(),
       });
-      // Mematikan Toast Loading dan menggantinya dengan Toast Success
       toast.dismiss(loadingToast);
       toast.success(`Berhasil absen untuk: ${nama}!`);
       setNama(''); 
@@ -97,13 +93,43 @@ export default function Home() {
     }
   };
 
+  // --- FUNGSI BARU: MENGEDIT DATA ---
+  const handleEdit = async (id: string, namaLama: string) => {
+    // 1. Memunculkan kotak dialog yang meminta input teks baru
+    const namaBaru = window.prompt("Perbaiki nama/NRP:", namaLama);
+
+    // 2. Mengecek apakah pengguna mengetikkan sesuatu dan menekan "OK"
+    // (Jika pengguna menekan "Cancel", nilai namaBaru akan menjadi null)
+    if (namaBaru !== null && namaBaru.trim() !== "") {
+      
+      // Jika namanya tidak ada perubahan, tidak perlu mengirim data ke Firebase
+      if (namaBaru === namaLama) return;
+
+      const loadingToast = toast.loading('Sedang memperbarui data...');
+      
+      try {
+        // 3. Menunjuk dokumen spesifik dan memperbarui kolom 'nama_pegawai'
+        const referensiDokumen = doc(db, 'absensi_harian', id);
+        await updateDoc(referensiDokumen, {
+          nama_pegawai: namaBaru
+        });
+        
+        toast.dismiss(loadingToast);
+        toast.success('Data absen berhasil diperbarui!');
+      } catch (error) {
+        console.error(error);
+        toast.dismiss(loadingToast);
+        toast.error('Gagal memperbarui data.');
+      }
+    }
+  };
+
   const handleHapus = async (id: string, namaPegawai: string) => {
     const konfirmasi = window.confirm(`Apakah Anda yakin ingin menghapus data absen atas nama ${namaPegawai}?`);
     
     if (konfirmasi) {
       try {
         await deleteDoc(doc(db, 'absensi_harian', id));
-        // Menampilkan pesan sukses saat data terhapus
         toast.success('Data absen berhasil dihapus.');
       } catch (error) {
         toast.error('Gagal menghapus data.');
@@ -150,7 +176,6 @@ export default function Home() {
 
   return (
     <main style={{ padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
-      {/* Komponen Toaster diletakkan di dalam aplikasi agar pop-up bisa muncul */}
       <Toaster position="top-center" reverseOrder={false} />
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -194,12 +219,21 @@ export default function Home() {
               <td style={{ padding: '12px', border: '1px solid #ddd' }}>{new Date(absen.waktu_masuk).toLocaleString('id-ID')}</td>
               {isAdmin && (
                 <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>
-                  <button 
-                    onClick={() => handleHapus(absen.id, absen.nama_pegawai)} 
-                    style={{ padding: '0.4rem 0.8rem', background: '#ff4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
-                  >
-                    Hapus
-                  </button>
+                  {/* Membungkus tombol Edit dan Hapus dalam satu div agar sejajar */}
+                  <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                    <button 
+                      onClick={() => handleEdit(absen.id, absen.nama_pegawai)} 
+                      style={{ padding: '0.4rem 0.8rem', background: '#ffc107', color: 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+                    >
+                      Edit
+                    </button>
+                    <button 
+                      onClick={() => handleHapus(absen.id, absen.nama_pegawai)} 
+                      style={{ padding: '0.4rem 0.8rem', background: '#ff4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
+                    >
+                      Hapus
+                    </button>
+                  </div>
                 </td>
               )}
             </tr>
@@ -209,4 +243,3 @@ export default function Home() {
     </main>
   );
 }
-
