@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { auth } from '../firebase'; 
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
-// Menambahkan Toast untuk halaman login
 import toast, { Toaster } from 'react-hot-toast';
 
 export default function Login() {
@@ -18,17 +17,14 @@ export default function Login() {
     e.preventDefault(); 
     setLoading(true);
     
-    // Memunculkan loading toast
     const loadingToast = toast.loading('Memeriksa kredensial...');
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Jika berhasil, matikan loading dan masuk ke halaman utama
       toast.dismiss(loadingToast);
       toast.success('Login berhasil!');
       router.push('/'); 
     } catch (error) {
-      // Jika gagal, matikan loading dan munculkan pesan error
       toast.dismiss(loadingToast);
       toast.error('Email/NRP atau Password salah.');
     } finally {
@@ -42,28 +38,26 @@ export default function Login() {
       justifyContent: 'center', 
       alignItems: 'center', 
       minHeight: '100vh', 
-      backgroundColor: '#001f3f', // Background Biru Navy khas instansi
+      backgroundColor: '#001f3f', 
       fontFamily: 'Arial, sans-serif',
       padding: '1rem'
     }}>
-      {/* Memasang Toaster di halaman login */}
       <Toaster position="top-center" reverseOrder={false} />
       
       <div style={{ 
         background: 'white', 
         padding: '2.5rem 2rem', 
         borderRadius: '12px', 
-        boxShadow: '0 8px 24px rgba(0,0,0,0.3)', // Bayangan lembut
+        boxShadow: '0 8px 24px rgba(0,0,0,0.3)', 
         width: '100%', 
         maxWidth: '400px',
         textAlign: 'center'
       }}>
         
-        {/* Tempat untuk Logo Instansi */}
         <div style={{ 
           width: '70px', 
           height: '70px', 
-          backgroundColor: '#f1c40f', // Warna emas/kuning
+          backgroundColor: '#f1c40f', 
           borderRadius: '50%', 
           margin: '0 auto 1.5rem',
           display: 'flex',
@@ -74,7 +68,7 @@ export default function Login() {
           <span style={{ fontSize: '2rem' }}>🏢</span>
         </div>
 
-        <h2 style={{ margin: '0 0 0.5rem', color: '#001f3f', fontSize: '1.5rem' }}>e-Absensi Setum Polri</h2>
+        <h2 style={{ margin: '0 0 0.5rem', color: '#001f3f', fontSize: '1.5rem' }}>E-Office Setum Polri</h2>
         <p style={{ margin: '0 0 2rem', color: '#666', fontSize: '0.9rem' }}>Silakan login untuk mengakses sistem absensi</p>
         
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px', textAlign: 'left' }}>
@@ -86,15 +80,7 @@ export default function Login() {
               value={email} 
               onChange={(e) => setEmail(e.target.value)} 
               required
-              style={{ 
-                width: '100%', 
-                padding: '0.8rem', 
-                marginTop: '5px', 
-                borderRadius: '6px', 
-                border: '1px solid #ccc',
-                boxSizing: 'border-box', // Mencegah input melebar keluar kotak
-                fontSize: '1rem'
-              }}
+              style={{ width: '100%', padding: '0.8rem', marginTop: '5px', borderRadius: '6px', border: '1px solid #ccc', boxSizing: 'border-box', fontSize: '1rem' }}
             />
           </div>
           
@@ -106,16 +92,19 @@ export default function Login() {
               value={password} 
               onChange={(e) => setPassword(e.target.value)} 
               required
-              style={{ 
-                width: '100%', 
-                padding: '0.8rem', 
-                marginTop: '5px', 
-                borderRadius: '6px', 
-                border: '1px solid #ccc',
-                boxSizing: 'border-box',
-                fontSize: '1rem'
-              }}
+              style={{ width: '100%', padding: '0.8rem', marginTop: '5px', borderRadius: '6px', border: '1px solid #ccc', boxSizing: 'border-box', fontSize: '1rem' }}
             />
+            
+            {/* FITUR BARU: Tautan ke Halaman Lupa Password */}
+            <div style={{ textAlign: 'right', marginTop: '8px' }}>
+              <button 
+                type="button" 
+                onClick={() => router.push('/lupa-password')} 
+                style={{ background: 'none', border: 'none', color: '#007bff', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
+              >
+                Lupa Password?
+              </button>
+            </div>
           </div>
 
           <button 
@@ -134,11 +123,10 @@ export default function Login() {
               boxShadow: '0 4px 6px rgba(0, 31, 63, 0.2)'
             }}
           >
-            {loading ? 'Memeriksa...' : 'Masuk'}
+            {loading ? 'Memeriksa...' : 'Masuk Sistem'}
           </button>
         </form>
 
-        {/* Footer Kecil di Bawah */}
         <div style={{ marginTop: '2rem', fontSize: '0.75rem', color: '#999' }}>
           &copy; 2026 Setum Polri. Hak Cipta Dilindungi.
         </div>
@@ -146,3 +134,4 @@ export default function Login() {
     </main>
   );
 }
+
