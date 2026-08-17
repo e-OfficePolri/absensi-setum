@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { db, auth } from './firebase'; 
-// Menambahkan 'doc' dan 'deleteDoc' untuk fitur hapus
 import { collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc } from 'firebase/firestore'; 
 import { onAuthStateChanged, signOut } from 'firebase/auth'; 
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+// Mengimpor pustaka Toast
+import toast, { Toaster } from 'react-hot-toast';
 
 export default function Home() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
@@ -16,7 +17,6 @@ export default function Home() {
   const router = useRouter();
 
   const [nama, setNama] = useState('');
-  const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [daftarAbsen, setDaftarAbsen] = useState<any[]>([]);
   const [filterTanggal, setFilterTanggal] = useState('');
@@ -56,7 +56,8 @@ export default function Home() {
 
   const handleAbsen = async () => {
     if (!nama) {
-      alert('Mohon masukkan nama atau NRP terlebih dahulu!');
+      // Menggunakan Toast Error untuk kolom kosong
+      toast.error('Mohon masukkan nama atau NRP terlebih dahulu!');
       return;
     }
 
@@ -69,41 +70,43 @@ export default function Home() {
     });
 
     if (sudahAbsen) {
-      alert(`Maaf, data atas nama "${nama}" sudah melakukan absensi hari ini!`);
+      // Menggunakan Toast Error untuk absen ganda
+      toast.error(`Maaf, "${nama}" sudah melakukan absensi hari ini!`);
       setNama(''); 
       return; 
     }
 
     setLoading(true);
-    setStatus('Sedang menyimpan...');
+    // Menggunakan Toast Loading
+    const loadingToast = toast.loading('Sedang menyimpan data...');
+    
     try {
       await addDoc(collection(db, 'absensi_harian'), {
         nama_pegawai: nama,
         waktu_masuk: new Date().toISOString(),
       });
-      setStatus(`Berhasil absen untuk: ${nama}!`);
+      // Mematikan Toast Loading dan menggantinya dengan Toast Success
+      toast.dismiss(loadingToast);
+      toast.success(`Berhasil absen untuk: ${nama}!`);
       setNama(''); 
     } catch (error) {
-      setStatus('Gagal menyimpan data.');
+      toast.dismiss(loadingToast);
+      toast.error('Gagal menyimpan data.');
     } finally {
       setLoading(false);
     }
   };
 
-  // --- FUNGSI BARU: MENGHAPUS DATA ---
   const handleHapus = async (id: string, namaPegawai: string) => {
-    // 1. Munculkan peringatan sebelum menghapus
     const konfirmasi = window.confirm(`Apakah Anda yakin ingin menghapus data absen atas nama ${namaPegawai}?`);
     
-    // 2. Jika tombol "OK" diklik, jalankan penghapusan
     if (konfirmasi) {
       try {
-        // Mengincar ID spesifik di dalam koleksi 'absensi_harian' dan menghapusnya
         await deleteDoc(doc(db, 'absensi_harian', id));
-        alert('Data absen berhasil dihapus.');
+        // Menampilkan pesan sukses saat data terhapus
+        toast.success('Data absen berhasil dihapus.');
       } catch (error) {
-        console.error(error);
-        alert('Gagal menghapus data.');
+        toast.error('Gagal menghapus data.');
       }
     }
   };
@@ -122,6 +125,7 @@ export default function Home() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan Absensi");
     XLSX.writeFile(workbook, "Laporan_Absensi_Setum.xlsx");
+    toast.success('File Excel berhasil diunduh!');
   };
 
   const unduhPDF = () => {
@@ -137,6 +141,7 @@ export default function Home() {
       startY: 20,
     });
     doc.save("Laporan_Absensi_Setum.pdf");
+    toast.success('File PDF berhasil diunduh!');
   };
 
   if (isCheckingAuth) {
@@ -145,6 +150,9 @@ export default function Home() {
 
   return (
     <main style={{ padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
+      {/* Komponen Toaster diletakkan di dalam aplikasi agar pop-up bisa muncul */}
+      <Toaster position="top-center" reverseOrder={false} />
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>Absensi Setum Polri</h1>
         <button onClick={handleLogout} style={{ padding: '0.6rem 1rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
@@ -176,7 +184,6 @@ export default function Home() {
           <tr style={{ background: '#f4f4f4' }}>
             <th style={{ padding: '12px', border: '1px solid #ddd' }}>Nama</th>
             <th style={{ padding: '12px', border: '1px solid #ddd' }}>Waktu</th>
-            {/* Kolom Aksi Hanya Muncul Jika Admin */}
             {isAdmin && <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>Aksi</th>}
           </tr>
         </thead>
@@ -185,7 +192,6 @@ export default function Home() {
             <tr key={absen.id}>
               <td style={{ padding: '12px', border: '1px solid #ddd' }}>{absen.nama_pegawai}</td>
               <td style={{ padding: '12px', border: '1px solid #ddd' }}>{new Date(absen.waktu_masuk).toLocaleString('id-ID')}</td>
-              {/* Tombol Hapus Hanya Muncul Jika Admin */}
               {isAdmin && (
                 <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>
                   <button 
