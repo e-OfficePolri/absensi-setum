@@ -10,20 +10,23 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import toast, { Toaster } from 'react-hot-toast';
 
-// --- FUNGSI MENGHITUNG JARAK (RUMUS HAVERSINE) ---
-// Fungsi ini mengubah dua titik koordinat menjadi jarak satuan meter
+// --- IMPORT CHART.JS ---
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title as ChartTitle, Tooltip, Legend } from 'chart.js';
+import { Bar } from 'react-chartjs-2';
+
+// Mendaftarkan komponen Chart.js agar bisa digunakan di React
+ChartJS.register(CategoryScale, LinearScale, BarElement, ChartTitle, Tooltip, Legend);
+
 const hitungJarakMeter = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-  const R = 6371e3; // Radius bumi dalam meter
+  const R = 6371e3; 
   const p1 = (lat1 * Math.PI) / 180;
   const p2 = (lat2 * Math.PI) / 180;
   const dp = ((lat2 - lat1) * Math.PI) / 180;
   const dl = ((lon2 - lon1) * Math.PI) / 180;
 
-  const a =
-    Math.sin(dp / 2) * Math.sin(dp / 2) +
-    Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+  const a = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // Menghasilkan jarak dalam bentuk angka meter
+  return R * c; 
 };
 
 export default function Home() {
@@ -63,6 +66,57 @@ export default function Home() {
     return () => unsubscribeData();
   }, [isCheckingAuth]);
 
+  // --- LOGIKA PENGOLAHAN DATA STATISTIK ---
+  const hitungStatistik = () => {
+    const dataGrafik: { [key: string]: number } = {};
+    let kehadiranHariIni = 0;
+    const tanggalHariIni = new Date().toISOString().split('T')[0];
+
+    daftarAbsen.forEach((absen) => {
+      const tanggal = absen.waktu_masuk?.split('T')[0];
+      if (tanggal) {
+        if (tanggal === tanggalHariIni) kehadiranHariIni += 1;
+        // Menghitung jumlah per tanggal
+        dataGrafik[tanggal] = (dataGrafik[tanggal] || 0) + 1;
+      }
+    });
+
+    // Mengurutkan tanggal dan mengambil 7 hari terakhir
+    const labelTanggal = Object.keys(dataGrafik).sort().slice(-7);
+    const jumlahHadir = labelTanggal.map(tgl => dataGrafik[tgl]);
+
+    return { kehadiranHariIni, labelTanggal, jumlahHadir };
+  };
+
+  const { kehadiranHariIni, labelTanggal, jumlahHadir } = hitungStatistik();
+
+  // Konfigurasi visual grafik
+  const dataChart = {
+    labels: labelTanggal,
+    datasets: [
+      {
+        label: 'Jumlah Kehadiran',
+        data: jumlahHadir,
+        backgroundColor: '#f1c40f', // Warna emas/kuning
+        borderColor: '#001f3f', // Biru Navy
+        borderWidth: 1,
+        borderRadius: 4,
+      },
+    ],
+  };
+
+  const opsiChart = {
+    responsive: true,
+    plugins: {
+      legend: { position: 'top' as const },
+      title: { display: true, text: 'Tren Kehadiran (7 Hari Terakhir)' },
+    },
+    scales: {
+      y: { beginAtZero: true, ticks: { stepSize: 1 } }
+    }
+  };
+  // --- AKHIR LOGIKA STATISTIK ---
+
   const daftarAbsenTerfilter = daftarAbsen.filter((absen) => {
     const cocokTanggal = !filterTanggal || (absen.waktu_masuk?.split('T')[0] === filterTanggal);
     const cocokNama = !kataKunci || absen.nama_pegawai.toLowerCase().includes(kataKunci.toLowerCase());
@@ -78,11 +132,10 @@ export default function Home() {
 
   const handleLogout = async () => { await signOut(auth); router.push('/login'); };
 
-  // --- FUNGSI ABSEN YANG DIPERBARUI DENGAN GEOFENCING ---
   const handleAbsen = async () => {
     const jamSekarang = new Date().getHours();
-    if (jamSekarang < 6 || jamSekarang >= 23) {
-      toast.error('Absen hanya dibuka pukul 06:00 - 23:00');
+    if (jamSekarang < 4 || jamSekarang >= 8) {
+      toast.error('Absen hanya dibuka pukul 04:00 - 08:00');
       return;
     }
 
@@ -95,23 +148,17 @@ export default function Home() {
     const loadingToast = toast.loading('Memeriksa lokasi GPS Anda...');
 
     try {
-      // 1. Meminta koordinat GPS pengguna dari browser
       const posisi = await new Promise<GeolocationPosition>((resolve, reject) => {
-        if (!navigator.geolocation) {
-          reject(new Error('GPS tidak didukung di perangkat ini.'));
-        }
+        if (!navigator.geolocation) reject(new Error('GPS tidak didukung di perangkat ini.'));
         navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true });
       });
 
-      // 2. Menentukan titik pusat dan batas toleransi jarak (Silakan sesuaikan nanti)
-      const KANTOR_LAT = -6.238934;  // Titik koordinat Latitude (Garis Lintang) kantor Setum Polri
-      const KANTOR_LON = 106.803024; // Titik koordinat Longitude (Garis Bujur) kantor Setum Polri
-      const BATAS_JARAK_METER = 50; // Toleransi maksimal 50 meter dari titik pusat
+      const KANTOR_LAT = -6.238934;  
+      const KANTOR_LON = 106.803024; 
+      const BATAS_JARAK_METER = 50; 
 
-      // 3. Menghitung jarak pengguna dengan kantor
       const jarak = hitungJarakMeter(posisi.coords.latitude, posisi.coords.longitude, KANTOR_LAT, KANTOR_LON);
 
-      // 4. Jika lebih jauh dari batas jarak, tolak absensi
       if (jarak > BATAS_JARAK_METER) {
         toast.dismiss(loadingToast);
         toast.error(`Anda terlalu jauh! Jarak Anda: ${Math.round(jarak)} meter dari titik absen.`);
@@ -119,7 +166,6 @@ export default function Home() {
         return;
       }
 
-      // Jika lokasi aman, lanjutkan menyimpan ke Firebase
       toast.loading('Lokasi terkonfirmasi. Menyimpan data absensi...', { id: loadingToast });
       
       await addDoc(collection(db, 'absensi_harian'), { 
@@ -173,6 +219,29 @@ export default function Home() {
         <h1 style={{ margin: 0, fontSize: '1.8rem', color: '#001f3f' }}>Absensi Setum Polri</h1>
         <button onClick={handleLogout} style={{ padding: '0.5rem 1rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>Logout</button>
       </div>
+
+      {/* DASHBOARD STATISTIK (HANYA UNTUK ADMIN) */}
+      {isAdmin && (
+        <div style={{ marginBottom: '2rem', padding: '1.5rem', background: 'white', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
+          <h2 style={{ marginTop: 0, color: '#001f3f', fontSize: '1.2rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Dashboard Statistik</h2>
+          
+          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+            <div style={{ flex: 1, minWidth: '150px', background: '#001f3f', color: 'white', padding: '1rem', borderRadius: '8px', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Hadir Hari Ini</div>
+              <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{kehadiranHariIni}</div>
+            </div>
+            <div style={{ flex: 1, minWidth: '150px', background: '#f1c40f', color: '#001f3f', padding: '1rem', borderRadius: '8px', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.9rem', opacity: 0.8 }}>Total Data Absen</div>
+              <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>{daftarAbsen.length}</div>
+            </div>
+          </div>
+
+          <div style={{ width: '100%', height: '250px' }}>
+            <Bar data={dataChart} options={opsiChart} />
+          </div>
+        </div>
+      )}
+      {/* AKHIR DASHBOARD STATISTIK */}
 
       <div style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem' }}>
         <input value={nama} onChange={(e) => setNama(e.target.value)} placeholder="Masukkan Nama atau NRP" style={{ padding: '0.8rem', flex: 1, maxWidth: '350px', borderRadius: '5px', border: '1px solid #ccc' }} />
