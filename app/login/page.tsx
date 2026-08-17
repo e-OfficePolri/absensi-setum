@@ -74,7 +74,7 @@ export default function Login() {
           <span style={{ fontSize: '2rem' }}>🏢</span>
         </div>
 
-        <h2 style={{ margin: '0 0 0.5rem', color: '#001f3f', fontSize: '1.5rem' }}>E-Office Setum Polri</h2>
+        <h2 style={{ margin: '0 0 0.5rem', color: '#001f3f', fontSize: '1.5rem' }}>e-Absensi Setum Polri</h2>
         <p style={{ margin: '0 0 2rem', color: '#666', fontSize: '0.9rem' }}>Silakan login untuk mengakses sistem absensi</p>
         
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px', textAlign: 'left' }}>
@@ -134,7 +134,7 @@ export default function Login() {
               boxShadow: '0 4px 6px rgba(0, 31, 63, 0.2)'
             }}
           >
-            {loading ? 'Memeriksa...' : 'Masuk Sistem'}
+            {loading ? 'Memeriksa...' : 'Masuk'}
           </button>
         </form>
 
