@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { db, auth } from './firebase'; 
-// Menambahkan 'updateDoc' untuk fitur edit data
 import { collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc, updateDoc } from 'firebase/firestore'; 
 import { onAuthStateChanged, signOut } from 'firebase/auth'; 
 import { useRouter } from 'next/navigation';
@@ -19,7 +18,10 @@ export default function Home() {
   const [nama, setNama] = useState('');
   const [loading, setLoading] = useState(false);
   const [daftarAbsen, setDaftarAbsen] = useState<any[]>([]);
+  
+  // STATE PENCARIAN & FILTER
   const [filterTanggal, setFilterTanggal] = useState('');
+  const [kataKunci, setKataKunci] = useState(''); // State baru untuk fitur pencarian
 
   // TENTUKAN EMAIL ADMIN DI SINI
   const EMAIL_ADMIN = "98010786@polri.go.id";
@@ -93,31 +95,19 @@ export default function Home() {
     }
   };
 
-  // --- FUNGSI BARU: MENGEDIT DATA ---
   const handleEdit = async (id: string, namaLama: string) => {
-    // 1. Memunculkan kotak dialog yang meminta input teks baru
     const namaBaru = window.prompt("Perbaiki nama/NRP:", namaLama);
-
-    // 2. Mengecek apakah pengguna mengetikkan sesuatu dan menekan "OK"
-    // (Jika pengguna menekan "Cancel", nilai namaBaru akan menjadi null)
     if (namaBaru !== null && namaBaru.trim() !== "") {
-      
-      // Jika namanya tidak ada perubahan, tidak perlu mengirim data ke Firebase
       if (namaBaru === namaLama) return;
-
       const loadingToast = toast.loading('Sedang memperbarui data...');
-      
       try {
-        // 3. Menunjuk dokumen spesifik dan memperbarui kolom 'nama_pegawai'
         const referensiDokumen = doc(db, 'absensi_harian', id);
         await updateDoc(referensiDokumen, {
           nama_pegawai: namaBaru
         });
-        
         toast.dismiss(loadingToast);
         toast.success('Data absen berhasil diperbarui!');
       } catch (error) {
-        console.error(error);
         toast.dismiss(loadingToast);
         toast.error('Gagal memperbarui data.');
       }
@@ -126,7 +116,6 @@ export default function Home() {
 
   const handleHapus = async (id: string, namaPegawai: string) => {
     const konfirmasi = window.confirm(`Apakah Anda yakin ingin menghapus data absen atas nama ${namaPegawai}?`);
-    
     if (konfirmasi) {
       try {
         await deleteDoc(doc(db, 'absensi_harian', id));
@@ -137,9 +126,17 @@ export default function Home() {
     }
   };
 
+  // --- LOGIKA FILTER & PENCARIAN YANG DIPERBARUI ---
   const daftarAbsenTerfilter = daftarAbsen.filter((absen) => {
-    if (!filterTanggal) return true;
-    return absen.waktu_masuk?.split('T')[0] === filterTanggal;
+    // 1. Cek kecocokan tanggal (jika filter tanggal diisi)
+    const cocokTanggal = !filterTanggal || (absen.waktu_masuk?.split('T')[0] === filterTanggal);
+    
+    // 2. Cek kecocokan nama (jika kotak pencarian diisi)
+    // toLowerCase() memastikan pencarian tidak mempedulikan huruf besar/kecil
+    const cocokNama = !kataKunci || absen.nama_pegawai.toLowerCase().includes(kataKunci.toLowerCase());
+    
+    // Data hanya akan ditampilkan jika cocok dengan tanggal DAN cocok dengan kata kunci
+    return cocokTanggal && cocokNama;
   });
 
   const unduhExcel = () => {
@@ -192,9 +189,22 @@ export default function Home() {
         </button>
       </div>
 
-      <div style={{ marginTop: '2rem', background: '#f9f9f9', padding: '1rem', borderRadius: '8px', maxWidth: '600px' }}>
-        <label>Filter Tanggal:</label>
-        <input type="date" value={filterTanggal} onChange={(e) => setFilterTanggal(e.target.value)} style={{ marginLeft: '10px', padding: '0.5rem' }} />
+      {/* AREA PENCARIAN DAN FILTER (Diperbarui agar sejajar) */}
+      <div style={{ marginTop: '2rem', background: '#f9f9f9', padding: '1rem', borderRadius: '8px', maxWidth: '600px', display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+        <div>
+          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '0.9rem' }}>Filter Tanggal:</label>
+          <input type="date" value={filterTanggal} onChange={(e) => setFilterTanggal(e.target.value)} style={{ padding: '0.6rem', borderRadius: '5px', border: '1px solid #ccc' }} />
+        </div>
+        <div style={{ flex: 1, minWidth: '200px' }}>
+          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '0.9rem' }}>Cari Nama:</label>
+          <input 
+            type="text" 
+            placeholder="Ketik nama untuk mencari..." 
+            value={kataKunci} 
+            onChange={(e) => setKataKunci(e.target.value)} 
+            style={{ width: '100%', padding: '0.6rem', borderRadius: '5px', border: '1px solid #ccc' }} 
+          />
+        </div>
       </div>
 
       {isAdmin && (
@@ -213,33 +223,41 @@ export default function Home() {
           </tr>
         </thead>
         <tbody>
-          {daftarAbsenTerfilter.map((absen) => (
-            <tr key={absen.id}>
-              <td style={{ padding: '12px', border: '1px solid #ddd' }}>{absen.nama_pegawai}</td>
-              <td style={{ padding: '12px', border: '1px solid #ddd' }}>{new Date(absen.waktu_masuk).toLocaleString('id-ID')}</td>
-              {isAdmin && (
-                <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>
-                  {/* Membungkus tombol Edit dan Hapus dalam satu div agar sejajar */}
-                  <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
-                    <button 
-                      onClick={() => handleEdit(absen.id, absen.nama_pegawai)} 
-                      style={{ padding: '0.4rem 0.8rem', background: '#ffc107', color: 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
-                    >
-                      Edit
-                    </button>
-                    <button 
-                      onClick={() => handleHapus(absen.id, absen.nama_pegawai)} 
-                      style={{ padding: '0.4rem 0.8rem', background: '#ff4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
-                    >
-                      Hapus
-                    </button>
-                  </div>
-                </td>
-              )}
+          {daftarAbsenTerfilter.length === 0 ? (
+            <tr>
+              <td colSpan={isAdmin ? 3 : 2} style={{ padding: '1rem', textAlign: 'center', color: '#666' }}>
+                Data tidak ditemukan.
+              </td>
             </tr>
-          ))}
+          ) : (
+            daftarAbsenTerfilter.map((absen) => (
+              <tr key={absen.id}>
+                <td style={{ padding: '12px', border: '1px solid #ddd' }}>{absen.nama_pegawai}</td>
+                <td style={{ padding: '12px', border: '1px solid #ddd' }}>{new Date(absen.waktu_masuk).toLocaleString('id-ID')}</td>
+                {isAdmin && (
+                  <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
+                      <button 
+                        onClick={() => handleEdit(absen.id, absen.nama_pegawai)} 
+                        style={{ padding: '0.4rem 0.8rem', background: '#ffc107', color: 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+                      >
+                        Edit
+                      </button>
+                      <button 
+                        onClick={() => handleHapus(absen.id, absen.nama_pegawai)} 
+                        style={{ padding: '0.4rem 0.8rem', background: '#ff4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </main>
   );
 }
+
