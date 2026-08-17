@@ -42,7 +42,7 @@ export default function Home() {
   const [halamanSaatIni, setHalamanSaatIni] = useState(1);
   const barisPerHalaman = 10;
 
-  const EMAIL_ADMIN = "irfannrmdnn@gmail.com";
+  const EMAIL_ADMIN = "98010786@polri.go.id";
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
