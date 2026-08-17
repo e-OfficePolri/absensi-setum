@@ -21,7 +21,6 @@ export default function Home() {
   const [filterTanggal, setFilterTanggal] = useState('');
   const [kataKunci, setKataKunci] = useState('');
   
-  // --- STATE PAGINATION ---
   const [halamanSaatIni, setHalamanSaatIni] = useState(1);
   const barisPerHalaman = 10;
 
@@ -48,14 +47,12 @@ export default function Home() {
     return () => unsubscribeData();
   }, [isCheckingAuth]);
 
-  // Logika Filter & Pencarian
   const daftarAbsenTerfilter = daftarAbsen.filter((absen) => {
     const cocokTanggal = !filterTanggal || (absen.waktu_masuk?.split('T')[0] === filterTanggal);
     const cocokNama = !kataKunci || absen.nama_pegawai.toLowerCase().includes(kataKunci.toLowerCase());
     return cocokTanggal && cocokNama;
   });
 
-  // --- LOGIKA PAGINATION ---
   const indexTerakhir = halamanSaatIni * barisPerHalaman;
   const indexPertama = indexTerakhir - barisPerHalaman;
   const dataTampil = daftarAbsenTerfilter.slice(indexPertama, indexTerakhir);
@@ -63,7 +60,6 @@ export default function Home() {
 
   useEffect(() => { setHalamanSaatIni(1); }, [filterTanggal, kataKunci]);
 
-  // --- FUNGSI-FUNGSI UTAMA ---
   const handleLogout = async () => { await signOut(auth); router.push('/login'); };
 
   const handleAbsen = async () => {
@@ -94,64 +90,134 @@ export default function Home() {
   };
 
   const unduhExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(daftarAbsenTerfilter.map(a => ({"Nama": a.nama_pegawai, "Waktu": new Date(a.waktu_masuk).toLocaleString()})));
+    const ws = XLSX.utils.json_to_sheet(daftarAbsenTerfilter.map(a => ({"Nama": a.nama_pegawai, "Waktu": new Date(a.waktu_masuk).toLocaleString('id-ID')})));
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Laporan"); XLSX.writeFile(wb, "Laporan.xlsx");
   };
 
   const unduhPDF = () => {
     const doc = new jsPDF();
-    autoTable(doc, { head: [['Nama', 'Waktu']], body: daftarAbsenTerfilter.map(a => [a.nama_pegawai, new Date(a.waktu_masuk).toLocaleString()]) });
+    autoTable(doc, { head: [['Nama', 'Waktu']], body: daftarAbsenTerfilter.map(a => [a.nama_pegawai, new Date(a.waktu_masuk).toLocaleString('id-ID')]) });
     doc.save("Laporan.pdf");
   };
 
-  if (isCheckingAuth) return <div>Memeriksa keamanan...</div>;
+  if (isCheckingAuth) return <div style={{ padding: '2rem', textAlign: 'center' }}>Memeriksa keamanan...</div>;
 
   return (
-    <main style={{ padding: '2rem' }}>
-      <Toaster />
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <h1>Absensi Setum Polri</h1>
-        <button onClick={handleLogout}>Logout</button>
+    <main style={{ padding: '2rem', fontFamily: 'Arial, sans-serif', maxWidth: '800px', margin: '0 auto' }}>
+      <Toaster position="top-center" />
+      
+      {/* HEADER: Judul dan Tombol Logout */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '2px solid #eee', paddingBottom: '1rem' }}>
+        <h1 style={{ margin: 0, fontSize: '1.8rem', color: '#001f3f' }}>Absensi Setum Polri</h1>
+        <button 
+          onClick={handleLogout} 
+          style={{ padding: '0.5rem 1rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
+        >
+          Logout
+        </button>
       </div>
 
-      <input value={nama} onChange={(e) => setNama(e.target.value)} placeholder="Masukkan Nama" />
-      <button onClick={handleAbsen} disabled={loading}>Absen</button>
-
-      <div style={{ marginTop: '1rem' }}>
-        <input type="date" onChange={(e) => setFilterTanggal(e.target.value)} />
-        <input placeholder="Cari nama..." onChange={(e) => setKataKunci(e.target.value)} />
+      {/* INPUT ABSEN */}
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem' }}>
+        <input 
+          value={nama} 
+          onChange={(e) => setNama(e.target.value)} 
+          placeholder="Masukkan Nama atau NRP" 
+          style={{ padding: '0.8rem', flex: 1, maxWidth: '350px', borderRadius: '5px', border: '1px solid #ccc' }}
+        />
+        <button 
+          onClick={handleAbsen} 
+          disabled={loading} 
+          style={{ padding: '0.8rem 1.5rem', background: '#001f3f', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
+        >
+          {loading ? '...' : 'Absen'}
+        </button>
       </div>
 
-      {isAdmin && (
+      {/* FILTER & PENCARIAN */}
+      <div style={{ background: '#f9f9f9', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', display: 'flex', gap: '15px', flexWrap: 'wrap', border: '1px solid #ddd' }}>
         <div>
-          <button onClick={unduhExcel}>Excel</button>
-          <button onClick={unduhPDF}>PDF</button>
+          <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold' }}>Filter Tanggal:</label>
+          <input type="date" value={filterTanggal} onChange={(e) => setFilterTanggal(e.target.value)} style={{ padding: '0.5rem', borderRadius: '5px', border: '1px solid #ccc' }} />
+        </div>
+        <div style={{ flex: 1, minWidth: '200px' }}>
+          <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold' }}>Cari Nama:</label>
+          <input placeholder="Ketik nama untuk mencari..." value={kataKunci} onChange={(e) => setKataKunci(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
+        </div>
+      </div>
+
+      {/* TOMBOL UNDUH (ADMIN) */}
+      {isAdmin && (
+        <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '10px' }}>
+          <button onClick={unduhExcel} style={{ padding: '0.6rem 1rem', background: '#28a745', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>Unduh Excel (.xlsx)</button>
+          <button onClick={unduhPDF} style={{ padding: '0.6rem 1rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>Unduh PDF</button>
         </div>
       )}
 
-      <table>
-        <thead><tr><th>Nama</th><th>Waktu</th>{isAdmin && <th>Aksi</th>}</tr></thead>
-        <tbody>
-          {dataTampil.map((absen) => (
-            <tr key={absen.id}>
-              <td>{absen.nama_pegawai}</td>
-              <td>{new Date(absen.waktu_masuk).toLocaleString()}</td>
-              {isAdmin && (
-                <td>
-                  <button onClick={() => handleEdit(absen.id, absen.nama_pegawai)}>Edit</button>
-                  <button onClick={() => handleHapus(absen.id)}>Hapus</button>
-                </td>
-              )}
+      {/* TABEL DATA */}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+          <thead>
+            <tr style={{ background: '#f4f4f4', textAlign: 'left' }}>
+              <th style={{ padding: '12px', border: '1px solid #ddd' }}>Nama</th>
+              <th style={{ padding: '12px', border: '1px solid #ddd' }}>Waktu</th>
+              {isAdmin && <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>Aksi</th>}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {dataTampil.length === 0 ? (
+              <tr>
+                <td colSpan={isAdmin ? 3 : 2} style={{ padding: '1.5rem', textAlign: 'center', color: '#666' }}>
+                  Tidak ada data yang ditemukan.
+                </td>
+              </tr>
+            ) : (
+              dataTampil.map((absen) => (
+                <tr key={absen.id}>
+                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>{absen.nama_pegawai}</td>
+                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>{new Date(absen.waktu_masuk).toLocaleString('id-ID')}</td>
+                  {isAdmin && (
+                    <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                        <button 
+                          onClick={() => handleEdit(absen.id, absen.nama_pegawai)} 
+                          style={{ padding: '0.3rem 0.6rem', background: '#ffc107', color: 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+                        >
+                          Edit
+                        </button>
+                        <button 
+                          onClick={() => handleHapus(absen.id)} 
+                          style={{ padding: '0.3rem 0.6rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
+                        >
+                          Hapus
+                        </button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
-      {/* Navigasi Pagination */}
-      <div style={{ marginTop: '1rem' }}>
-        <button disabled={halamanSaatIni === 1} onClick={() => setHalamanSaatIni(halamanSaatIni - 1)}>Sebelumnya</button>
-        <span> Halaman {halamanSaatIni} dari {totalHalaman || 1} </span>
-        <button disabled={halamanSaatIni >= totalHalaman} onClick={() => setHalamanSaatIni(halamanSaatIni + 1)}>Selanjutnya</button>
+      {/* PAGINATION */}
+      <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
+        <button 
+          disabled={halamanSaatIni === 1} 
+          onClick={() => setHalamanSaatIni(halamanSaatIni - 1)}
+          style={{ padding: '0.5rem 1rem', cursor: halamanSaatIni === 1 ? 'not-allowed' : 'pointer', background: '#f1f1f1', border: '1px solid #ccc', borderRadius: '4px' }}
+        >
+          Sebelumnya
+        </button>
+        <span style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>Halaman {halamanSaatIni} dari {totalHalaman || 1}</span>
+        <button 
+          disabled={halamanSaatIni >= totalHalaman} 
+          onClick={() => setHalamanSaatIni(halamanSaatIni + 1)}
+          style={{ padding: '0.5rem 1rem', cursor: halamanSaatIni >= totalHalaman ? 'not-allowed' : 'pointer', background: '#f1f1f1', border: '1px solid #ccc', borderRadius: '4px' }}
+        >
+          Selanjutnya
+        </button>
       </div>
     </main>
   );
