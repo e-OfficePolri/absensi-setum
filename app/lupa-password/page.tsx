@@ -88,7 +88,7 @@ export default function LupaPassword() {
             <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#333' }}>Email Terdaftar</label>
             <input 
               type="email" 
-              placeholder="contoh: anggota@setum.id" 
+              placeholder="contoh: 123456@polri.go.id" 
               value={email} 
               onChange={(e) => setEmail(e.target.value)} 
               required
