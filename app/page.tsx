@@ -275,7 +275,7 @@ export default function Home() {
           disabled={loading} 
           style={{ padding: '0.8rem 1.5rem', background: '#001f3f', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
         >
-          {loading ? 'Memproses...' : 'Kirim'}
+          {loading ? 'Memproses...' : 'Absen'}
         </button>
       </div>
 
