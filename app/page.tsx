@@ -11,6 +11,10 @@ import autoTable from 'jspdf-autotable';
 
 export default function Home() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  
+  // STATE BARU: Untuk menyimpan status apakah pengguna ini admin atau bukan
+  const [isAdmin, setIsAdmin] = useState(false); 
+  
   const router = useRouter();
 
   const [nama, setNama] = useState('');
@@ -19,9 +23,19 @@ export default function Home() {
   const [daftarAbsen, setDaftarAbsen] = useState<any[]>([]);
   const [filterTanggal, setFilterTanggal] = useState('');
 
+  // TENTUKAN EMAIL ADMIN DI SINI
+  // Silakan ganti "admin@setum.id" dengan email yang kamu gunakan sebagai Admin
+  const EMAIL_ADMIN = "98010786@polri.go.id";
+
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
+        // Cek apakah email yang sedang login cocok dengan EMAIL_ADMIN
+        if (user.email === EMAIL_ADMIN) {
+          setIsAdmin(true); // Jika cocok, beri hak akses Admin
+        } else {
+          setIsAdmin(false); // Jika tidak, dia adalah pengguna biasa
+        }
         setIsCheckingAuth(false);
       } else {
         router.push('/login');
@@ -44,39 +58,25 @@ export default function Home() {
     router.push('/login'); 
   };
 
-  // FUNGSI HANDLE ABSEN YANG DIPERBARUI
   const handleAbsen = async () => {
-    // 1. Cek apakah kotak nama kosong
     if (!nama) {
       alert('Mohon masukkan nama atau NRP terlebih dahulu!');
       return;
     }
 
-    // --- MULAI FITUR VALIDASI ABSEN GANDA ---
-    
-    // A. Dapatkan format tanggal hari ini (Contoh: "2026-08-17")
     const tanggalHariIni = new Date().toISOString().split('T')[0];
-
-    // B. Cek apakah sudah ada data dengan nama yang sama di hari yang sama
     const sudahAbsen = daftarAbsen.some((absen) => {
       const tanggalAbsen = absen.waktu_masuk ? absen.waktu_masuk.split('T')[0] : '';
-      
-      // Kita ubah ke huruf kecil semua (toLowerCase) agar pengecekan lebih akurat
-      // (Misal: "Irfan" akan dianggap sama dengan "irfan")
       const namaSama = absen.nama_pegawai.toLowerCase() === nama.toLowerCase();
       const hariSama = tanggalAbsen === tanggalHariIni;
-
       return namaSama && hariSama;
     });
 
-    // C. Hentikan proses jika ternyata sudah absen
     if (sudahAbsen) {
       alert(`Maaf, data atas nama "${nama}" sudah melakukan absensi hari ini!`);
-      setNama(''); // Kosongkan kolom input
-      return; // 'return' di sini berfungsi membatalkan jalannya kode di bawah ini
+      setNama(''); 
+      return; 
     }
-
-    // --- AKHIR FITUR VALIDASI ABSEN GANDA ---
 
     setLoading(true);
     setStatus('Sedang menyimpan...');
@@ -150,10 +150,13 @@ export default function Home() {
         <input type="date" value={filterTanggal} onChange={(e) => setFilterTanggal(e.target.value)} style={{ marginLeft: '10px', padding: '0.5rem' }} />
       </div>
 
-      <div style={{ marginTop: '2rem', display: 'flex', gap: '10px' }}>
-        <button onClick={unduhExcel} style={{ padding: '0.6rem', background: '#28a745', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Unduh Excel (.xlsx)</button>
-        <button onClick={unduhPDF} style={{ padding: '0.6rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Unduh PDF</button>
-      </div>
+      {/* FITUR KEAMANAN: Tombol unduh hanya akan dimunculkan jika nilai isAdmin adalah 'true' */}
+      {isAdmin && (
+        <div style={{ marginTop: '2rem', display: 'flex', gap: '10px' }}>
+          <button onClick={unduhExcel} style={{ padding: '0.6rem', background: '#28a745', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Unduh Excel (.xlsx)</button>
+          <button onClick={unduhPDF} style={{ padding: '0.6rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Unduh PDF</button>
+        </div>
+      )}
       
       <table style={{ width: '100%', maxWidth: '600px', borderCollapse: 'collapse', marginTop: '1rem' }}>
         <thead>
