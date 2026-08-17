@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { db, auth } from './firebase'; 
-import { collection, addDoc, onSnapshot, query, orderBy } from 'firebase/firestore'; 
+// Menambahkan 'doc' dan 'deleteDoc' untuk fitur hapus
+import { collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc } from 'firebase/firestore'; 
 import { onAuthStateChanged, signOut } from 'firebase/auth'; 
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
@@ -11,10 +12,7 @@ import autoTable from 'jspdf-autotable';
 
 export default function Home() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  
-  // STATE BARU: Untuk menyimpan status apakah pengguna ini admin atau bukan
   const [isAdmin, setIsAdmin] = useState(false); 
-  
   const router = useRouter();
 
   const [nama, setNama] = useState('');
@@ -24,17 +22,15 @@ export default function Home() {
   const [filterTanggal, setFilterTanggal] = useState('');
 
   // TENTUKAN EMAIL ADMIN DI SINI
-  // Silakan ganti "admin@setum.id" dengan email yang kamu gunakan sebagai Admin
-  const EMAIL_ADMIN = "98010786@polri.go.id";
+  const EMAIL_ADMIN = "admin@setum.id";
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // Cek apakah email yang sedang login cocok dengan EMAIL_ADMIN
         if (user.email === EMAIL_ADMIN) {
-          setIsAdmin(true); // Jika cocok, beri hak akses Admin
+          setIsAdmin(true); 
         } else {
-          setIsAdmin(false); // Jika tidak, dia adalah pengguna biasa
+          setIsAdmin(false); 
         }
         setIsCheckingAuth(false);
       } else {
@@ -94,6 +90,24 @@ export default function Home() {
     }
   };
 
+  // --- FUNGSI BARU: MENGHAPUS DATA ---
+  const handleHapus = async (id: string, namaPegawai: string) => {
+    // 1. Munculkan peringatan sebelum menghapus
+    const konfirmasi = window.confirm(`Apakah Anda yakin ingin menghapus data absen atas nama ${namaPegawai}?`);
+    
+    // 2. Jika tombol "OK" diklik, jalankan penghapusan
+    if (konfirmasi) {
+      try {
+        // Mengincar ID spesifik di dalam koleksi 'absensi_harian' dan menghapusnya
+        await deleteDoc(doc(db, 'absensi_harian', id));
+        alert('Data absen berhasil dihapus.');
+      } catch (error) {
+        console.error(error);
+        alert('Gagal menghapus data.');
+      }
+    }
+  };
+
   const daftarAbsenTerfilter = daftarAbsen.filter((absen) => {
     if (!filterTanggal) return true;
     return absen.waktu_masuk?.split('T')[0] === filterTanggal;
@@ -150,7 +164,6 @@ export default function Home() {
         <input type="date" value={filterTanggal} onChange={(e) => setFilterTanggal(e.target.value)} style={{ marginLeft: '10px', padding: '0.5rem' }} />
       </div>
 
-      {/* FITUR KEAMANAN: Tombol unduh hanya akan dimunculkan jika nilai isAdmin adalah 'true' */}
       {isAdmin && (
         <div style={{ marginTop: '2rem', display: 'flex', gap: '10px' }}>
           <button onClick={unduhExcel} style={{ padding: '0.6rem', background: '#28a745', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Unduh Excel (.xlsx)</button>
@@ -163,6 +176,8 @@ export default function Home() {
           <tr style={{ background: '#f4f4f4' }}>
             <th style={{ padding: '12px', border: '1px solid #ddd' }}>Nama</th>
             <th style={{ padding: '12px', border: '1px solid #ddd' }}>Waktu</th>
+            {/* Kolom Aksi Hanya Muncul Jika Admin */}
+            {isAdmin && <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>Aksi</th>}
           </tr>
         </thead>
         <tbody>
@@ -170,6 +185,17 @@ export default function Home() {
             <tr key={absen.id}>
               <td style={{ padding: '12px', border: '1px solid #ddd' }}>{absen.nama_pegawai}</td>
               <td style={{ padding: '12px', border: '1px solid #ddd' }}>{new Date(absen.waktu_masuk).toLocaleString('id-ID')}</td>
+              {/* Tombol Hapus Hanya Muncul Jika Admin */}
+              {isAdmin && (
+                <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>
+                  <button 
+                    onClick={() => handleHapus(absen.id, absen.nama_pegawai)} 
+                    style={{ padding: '0.4rem 0.8rem', background: '#ff4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
+                  >
+                    Hapus
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
