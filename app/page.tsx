@@ -18,22 +18,19 @@ export default function Home() {
   const [nama, setNama] = useState('');
   const [loading, setLoading] = useState(false);
   const [daftarAbsen, setDaftarAbsen] = useState<any[]>([]);
-  
-  // STATE PENCARIAN & FILTER
   const [filterTanggal, setFilterTanggal] = useState('');
-  const [kataKunci, setKataKunci] = useState(''); // State baru untuk fitur pencarian
+  const [kataKunci, setKataKunci] = useState('');
+  
+  // --- STATE PAGINATION ---
+  const [halamanSaatIni, setHalamanSaatIni] = useState(1);
+  const barisPerHalaman = 10;
 
-  // TENTUKAN EMAIL ADMIN DI SINI
   const EMAIL_ADMIN = "98010786@polri.go.id";
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
-        if (user.email === EMAIL_ADMIN) {
-          setIsAdmin(true); 
-        } else {
-          setIsAdmin(false); 
-        }
+        setIsAdmin(user.email === EMAIL_ADMIN);
         setIsCheckingAuth(false);
       } else {
         router.push('/login');
@@ -51,212 +48,111 @@ export default function Home() {
     return () => unsubscribeData();
   }, [isCheckingAuth]);
 
-  const handleLogout = async () => {
-    await signOut(auth);
-    router.push('/login'); 
-  };
+  // Logika Filter & Pencarian
+  const daftarAbsenTerfilter = daftarAbsen.filter((absen) => {
+    const cocokTanggal = !filterTanggal || (absen.waktu_masuk?.split('T')[0] === filterTanggal);
+    const cocokNama = !kataKunci || absen.nama_pegawai.toLowerCase().includes(kataKunci.toLowerCase());
+    return cocokTanggal && cocokNama;
+  });
+
+  // --- LOGIKA PAGINATION ---
+  const indexTerakhir = halamanSaatIni * barisPerHalaman;
+  const indexPertama = indexTerakhir - barisPerHalaman;
+  const dataTampil = daftarAbsenTerfilter.slice(indexPertama, indexTerakhir);
+  const totalHalaman = Math.ceil(daftarAbsenTerfilter.length / barisPerHalaman);
+
+  useEffect(() => { setHalamanSaatIni(1); }, [filterTanggal, kataKunci]);
+
+  // --- FUNGSI-FUNGSI UTAMA ---
+  const handleLogout = async () => { await signOut(auth); router.push('/login'); };
 
   const handleAbsen = async () => {
-    if (!nama) {
-      toast.error('Mohon masukkan nama atau NRP terlebih dahulu!');
-      return;
-    }
-
-    const tanggalHariIni = new Date().toISOString().split('T')[0];
-    const sudahAbsen = daftarAbsen.some((absen) => {
-      const tanggalAbsen = absen.waktu_masuk ? absen.waktu_masuk.split('T')[0] : '';
-      const namaSama = absen.nama_pegawai.toLowerCase() === nama.toLowerCase();
-      const hariSama = tanggalAbsen === tanggalHariIni;
-      return namaSama && hariSama;
-    });
-
-    if (sudahAbsen) {
-      toast.error(`Maaf, "${nama}" sudah melakukan absensi hari ini!`);
-      setNama(''); 
-      return; 
-    }
+    if (!nama) { toast.error('Mohon masukkan nama!'); return; }
+    const sudahAbsen = daftarAbsen.some((a) => a.nama_pegawai.toLowerCase() === nama.toLowerCase() && a.waktu_masuk.split('T')[0] === new Date().toISOString().split('T')[0]);
+    if (sudahAbsen) { toast.error('Sudah absen hari ini!'); return; }
 
     setLoading(true);
-    const loadingToast = toast.loading('Sedang menyimpan data...');
-    
     try {
-      await addDoc(collection(db, 'absensi_harian'), {
-        nama_pegawai: nama,
-        waktu_masuk: new Date().toISOString(),
-      });
-      toast.dismiss(loadingToast);
-      toast.success(`Berhasil absen untuk: ${nama}!`);
-      setNama(''); 
-    } catch (error) {
-      toast.dismiss(loadingToast);
-      toast.error('Gagal menyimpan data.');
-    } finally {
-      setLoading(false);
-    }
+      await addDoc(collection(db, 'absensi_harian'), { nama_pegawai: nama, waktu_masuk: new Date().toISOString() });
+      toast.success('Absen berhasil!'); setNama('');
+    } catch { toast.error('Gagal.'); } finally { setLoading(false); }
   };
 
   const handleEdit = async (id: string, namaLama: string) => {
     const namaBaru = window.prompt("Perbaiki nama/NRP:", namaLama);
-    if (namaBaru !== null && namaBaru.trim() !== "") {
-      if (namaBaru === namaLama) return;
-      const loadingToast = toast.loading('Sedang memperbarui data...');
-      try {
-        const referensiDokumen = doc(db, 'absensi_harian', id);
-        await updateDoc(referensiDokumen, {
-          nama_pegawai: namaBaru
-        });
-        toast.dismiss(loadingToast);
-        toast.success('Data absen berhasil diperbarui!');
-      } catch (error) {
-        toast.dismiss(loadingToast);
-        toast.error('Gagal memperbarui data.');
-      }
+    if (namaBaru && namaBaru !== namaLama) {
+      await updateDoc(doc(db, 'absensi_harian', id), { nama_pegawai: namaBaru });
+      toast.success('Data diperbarui!');
     }
   };
 
-  const handleHapus = async (id: string, namaPegawai: string) => {
-    const konfirmasi = window.confirm(`Apakah Anda yakin ingin menghapus data absen atas nama ${namaPegawai}?`);
-    if (konfirmasi) {
-      try {
-        await deleteDoc(doc(db, 'absensi_harian', id));
-        toast.success('Data absen berhasil dihapus.');
-      } catch (error) {
-        toast.error('Gagal menghapus data.');
-      }
+  const handleHapus = async (id: string) => {
+    if (window.confirm("Yakin ingin menghapus?")) {
+      await deleteDoc(doc(db, 'absensi_harian', id));
+      toast.success('Data dihapus!');
     }
   };
-
-  // --- LOGIKA FILTER & PENCARIAN YANG DIPERBARUI ---
-  const daftarAbsenTerfilter = daftarAbsen.filter((absen) => {
-    // 1. Cek kecocokan tanggal (jika filter tanggal diisi)
-    const cocokTanggal = !filterTanggal || (absen.waktu_masuk?.split('T')[0] === filterTanggal);
-    
-    // 2. Cek kecocokan nama (jika kotak pencarian diisi)
-    // toLowerCase() memastikan pencarian tidak mempedulikan huruf besar/kecil
-    const cocokNama = !kataKunci || absen.nama_pegawai.toLowerCase().includes(kataKunci.toLowerCase());
-    
-    // Data hanya akan ditampilkan jika cocok dengan tanggal DAN cocok dengan kata kunci
-    return cocokTanggal && cocokNama;
-  });
 
   const unduhExcel = () => {
-    const dataExcel = daftarAbsenTerfilter.map((absen) => ({
-      "Nama Pegawai": absen.nama_pegawai,
-      "Tanggal & Waktu Masuk": new Date(absen.waktu_masuk).toLocaleString('id-ID')
-    }));
-    const worksheet = XLSX.utils.json_to_sheet(dataExcel);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan Absensi");
-    XLSX.writeFile(workbook, "Laporan_Absensi_Setum.xlsx");
-    toast.success('File Excel berhasil diunduh!');
+    const ws = XLSX.utils.json_to_sheet(daftarAbsenTerfilter.map(a => ({"Nama": a.nama_pegawai, "Waktu": new Date(a.waktu_masuk).toLocaleString()})));
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Laporan"); XLSX.writeFile(wb, "Laporan.xlsx");
   };
 
   const unduhPDF = () => {
     const doc = new jsPDF();
-    doc.text("Laporan Absensi Setum Polri", 14, 15);
-    const tableData = daftarAbsenTerfilter.map(absen => [
-      absen.nama_pegawai,
-      new Date(absen.waktu_masuk).toLocaleString('id-ID')
-    ]);
-    autoTable(doc, {
-      head: [['Nama Pegawai', 'Tanggal & Waktu']],
-      body: tableData,
-      startY: 20,
-    });
-    doc.save("Laporan_Absensi_Setum.pdf");
-    toast.success('File PDF berhasil diunduh!');
+    autoTable(doc, { head: [['Nama', 'Waktu']], body: daftarAbsenTerfilter.map(a => [a.nama_pegawai, new Date(a.waktu_masuk).toLocaleString()]) });
+    doc.save("Laporan.pdf");
   };
 
-  if (isCheckingAuth) {
-    return <div style={{ padding: '2rem', textAlign: 'center' }}>Memeriksa keamanan...</div>;
-  }
+  if (isCheckingAuth) return <div>Memeriksa keamanan...</div>;
 
   return (
-    <main style={{ padding: '2rem', fontFamily: 'Arial, sans-serif' }}>
-      <Toaster position="top-center" reverseOrder={false} />
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <main style={{ padding: '2rem' }}>
+      <Toaster />
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
         <h1>Absensi Setum Polri</h1>
-        <button onClick={handleLogout} style={{ padding: '0.6rem 1rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
-          Logout
-        </button>
-      </div>
-      
-      <div style={{ margin: '1rem 0' }}>
-        <input type="text" placeholder="Masukkan Nama/NRP" value={nama} onChange={(e) => setNama(e.target.value)} disabled={loading} style={{ padding: '0.8rem', width: '100%', maxWidth: '300px', borderRadius: '5px', border: '1px solid #ccc' }} />
-        <button onClick={handleAbsen} disabled={loading} style={{ marginLeft: '10px', padding: '0.8rem 1.5rem', background: '#001f3f', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
-          {loading ? '...' : 'Absen'}
-        </button>
+        <button onClick={handleLogout}>Logout</button>
       </div>
 
-      {/* AREA PENCARIAN DAN FILTER (Diperbarui agar sejajar) */}
-      <div style={{ marginTop: '2rem', background: '#f9f9f9', padding: '1rem', borderRadius: '8px', maxWidth: '600px', display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-        <div>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '0.9rem' }}>Filter Tanggal:</label>
-          <input type="date" value={filterTanggal} onChange={(e) => setFilterTanggal(e.target.value)} style={{ padding: '0.6rem', borderRadius: '5px', border: '1px solid #ccc' }} />
-        </div>
-        <div style={{ flex: 1, minWidth: '200px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '0.9rem' }}>Cari Nama:</label>
-          <input 
-            type="text" 
-            placeholder="Ketik nama untuk mencari..." 
-            value={kataKunci} 
-            onChange={(e) => setKataKunci(e.target.value)} 
-            style={{ width: '100%', padding: '0.6rem', borderRadius: '5px', border: '1px solid #ccc' }} 
-          />
-        </div>
+      <input value={nama} onChange={(e) => setNama(e.target.value)} placeholder="Masukkan Nama" />
+      <button onClick={handleAbsen} disabled={loading}>Absen</button>
+
+      <div style={{ marginTop: '1rem' }}>
+        <input type="date" onChange={(e) => setFilterTanggal(e.target.value)} />
+        <input placeholder="Cari nama..." onChange={(e) => setKataKunci(e.target.value)} />
       </div>
 
       {isAdmin && (
-        <div style={{ marginTop: '2rem', display: 'flex', gap: '10px' }}>
-          <button onClick={unduhExcel} style={{ padding: '0.6rem', background: '#28a745', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Unduh Excel (.xlsx)</button>
-          <button onClick={unduhPDF} style={{ padding: '0.6rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>Unduh PDF</button>
+        <div>
+          <button onClick={unduhExcel}>Excel</button>
+          <button onClick={unduhPDF}>PDF</button>
         </div>
       )}
-      
-      <table style={{ width: '100%', maxWidth: '600px', borderCollapse: 'collapse', marginTop: '1rem' }}>
-        <thead>
-          <tr style={{ background: '#f4f4f4' }}>
-            <th style={{ padding: '12px', border: '1px solid #ddd' }}>Nama</th>
-            <th style={{ padding: '12px', border: '1px solid #ddd' }}>Waktu</th>
-            {isAdmin && <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>Aksi</th>}
-          </tr>
-        </thead>
+
+      <table>
+        <thead><tr><th>Nama</th><th>Waktu</th>{isAdmin && <th>Aksi</th>}</tr></thead>
         <tbody>
-          {daftarAbsenTerfilter.length === 0 ? (
-            <tr>
-              <td colSpan={isAdmin ? 3 : 2} style={{ padding: '1rem', textAlign: 'center', color: '#666' }}>
-                Data tidak ditemukan.
-              </td>
+          {dataTampil.map((absen) => (
+            <tr key={absen.id}>
+              <td>{absen.nama_pegawai}</td>
+              <td>{new Date(absen.waktu_masuk).toLocaleString()}</td>
+              {isAdmin && (
+                <td>
+                  <button onClick={() => handleEdit(absen.id, absen.nama_pegawai)}>Edit</button>
+                  <button onClick={() => handleHapus(absen.id)}>Hapus</button>
+                </td>
+              )}
             </tr>
-          ) : (
-            daftarAbsenTerfilter.map((absen) => (
-              <tr key={absen.id}>
-                <td style={{ padding: '12px', border: '1px solid #ddd' }}>{absen.nama_pegawai}</td>
-                <td style={{ padding: '12px', border: '1px solid #ddd' }}>{new Date(absen.waktu_masuk).toLocaleString('id-ID')}</td>
-                {isAdmin && (
-                  <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>
-                    <div style={{ display: 'flex', gap: '5px', justifyContent: 'center' }}>
-                      <button 
-                        onClick={() => handleEdit(absen.id, absen.nama_pegawai)} 
-                        style={{ padding: '0.4rem 0.8rem', background: '#ffc107', color: 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
-                      >
-                        Edit
-                      </button>
-                      <button 
-                        onClick={() => handleHapus(absen.id, absen.nama_pegawai)} 
-                        style={{ padding: '0.4rem 0.8rem', background: '#ff4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
-                      >
-                        Hapus
-                      </button>
-                    </div>
-                  </td>
-                )}
-              </tr>
-            ))
-          )}
+          ))}
         </tbody>
       </table>
+
+      {/* Navigasi Pagination */}
+      <div style={{ marginTop: '1rem' }}>
+        <button disabled={halamanSaatIni === 1} onClick={() => setHalamanSaatIni(halamanSaatIni - 1)}>Sebelumnya</button>
+        <span> Halaman {halamanSaatIni} dari {totalHalaman || 1} </span>
+        <button disabled={halamanSaatIni >= totalHalaman} onClick={() => setHalamanSaatIni(halamanSaatIni + 1)}>Selanjutnya</button>
+      </div>
     </main>
   );
 }
