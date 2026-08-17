@@ -9,12 +9,9 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import toast, { Toaster } from 'react-hot-toast';
-
-// --- IMPORT CHART.JS ---
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title as ChartTitle, Tooltip, Legend } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 
-// Mendaftarkan komponen Chart.js agar bisa digunakan di React
 ChartJS.register(CategoryScale, LinearScale, BarElement, ChartTitle, Tooltip, Legend);
 
 const hitungJarakMeter = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -23,7 +20,6 @@ const hitungJarakMeter = (lat1: number, lon1: number, lat2: number, lon2: number
   const p2 = (lat2 * Math.PI) / 180;
   const dp = ((lat2 - lat1) * Math.PI) / 180;
   const dl = ((lon2 - lon1) * Math.PI) / 180;
-
   const a = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c; 
@@ -35,6 +31,9 @@ export default function Home() {
   const router = useRouter();
 
   const [nama, setNama] = useState('');
+  // --- STATE BARU UNTUK STATUS KEHADIRAN ---
+  const [statusKehadiran, setStatusKehadiran] = useState('Hadir');
+  
   const [loading, setLoading] = useState(false);
   const [daftarAbsen, setDaftarAbsen] = useState<any[]>([]);
   const [filterTanggal, setFilterTanggal] = useState('');
@@ -66,7 +65,6 @@ export default function Home() {
     return () => unsubscribeData();
   }, [isCheckingAuth]);
 
-  // --- LOGIKA PENGOLAHAN DATA STATISTIK ---
   const hitungStatistik = () => {
     const dataGrafik: { [key: string]: number } = {};
     let kehadiranHariIni = 0;
@@ -75,34 +73,32 @@ export default function Home() {
     daftarAbsen.forEach((absen) => {
       const tanggal = absen.waktu_masuk?.split('T')[0];
       if (tanggal) {
-        if (tanggal === tanggalHariIni) kehadiranHariIni += 1;
-        // Menghitung jumlah per tanggal
-        dataGrafik[tanggal] = (dataGrafik[tanggal] || 0) + 1;
+        // Hanya menghitung grafik untuk yang statusnya "Hadir" atau data lama yang belum punya status
+        const isHadir = !absen.status_kehadiran || absen.status_kehadiran === 'Hadir';
+        if (isHadir) {
+          if (tanggal === tanggalHariIni) kehadiranHariIni += 1;
+          dataGrafik[tanggal] = (dataGrafik[tanggal] || 0) + 1;
+        }
       }
     });
 
-    // Mengurutkan tanggal dan mengambil 7 hari terakhir
     const labelTanggal = Object.keys(dataGrafik).sort().slice(-7);
     const jumlahHadir = labelTanggal.map(tgl => dataGrafik[tgl]);
-
     return { kehadiranHariIni, labelTanggal, jumlahHadir };
   };
 
   const { kehadiranHariIni, labelTanggal, jumlahHadir } = hitungStatistik();
 
-  // Konfigurasi visual grafik
   const dataChart = {
     labels: labelTanggal,
-    datasets: [
-      {
-        label: 'Jumlah Kehadiran',
-        data: jumlahHadir,
-        backgroundColor: '#f1c40f', // Warna emas/kuning
-        borderColor: '#001f3f', // Biru Navy
-        borderWidth: 1,
-        borderRadius: 4,
-      },
-    ],
+    datasets: [{
+      label: 'Jumlah Anggota Hadir',
+      data: jumlahHadir,
+      backgroundColor: '#f1c40f',
+      borderColor: '#001f3f',
+      borderWidth: 1,
+      borderRadius: 4,
+    }],
   };
 
   const opsiChart = {
@@ -111,11 +107,8 @@ export default function Home() {
       legend: { position: 'top' as const },
       title: { display: true, text: 'Tren Kehadiran (7 Hari Terakhir)' },
     },
-    scales: {
-      y: { beginAtZero: true, ticks: { stepSize: 1 } }
-    }
+    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
   };
-  // --- AKHIR LOGIKA STATISTIK ---
 
   const daftarAbsenTerfilter = daftarAbsen.filter((absen) => {
     const cocokTanggal = !filterTanggal || (absen.waktu_masuk?.split('T')[0] === filterTanggal);
@@ -145,40 +138,50 @@ export default function Home() {
     if (sudahAbsen) { toast.error('Sudah absen hari ini!'); return; }
 
     setLoading(true);
-    const loadingToast = toast.loading('Memeriksa lokasi GPS Anda...');
+    let loadingToast;
 
     try {
-      const posisi = await new Promise<GeolocationPosition>((resolve, reject) => {
-        if (!navigator.geolocation) reject(new Error('GPS tidak didukung di perangkat ini.'));
-        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true });
-      });
+      // LOGIKA PINTAR: Cek GPS HANYA jika statusnya "Hadir" atau "Dinas Luar"
+      if (statusKehadiran === 'Hadir' || statusKehadiran === 'Dinas Luar') {
+        loadingToast = toast.loading('Memeriksa lokasi GPS Anda...');
+        
+        const posisi = await new Promise<GeolocationPosition>((resolve, reject) => {
+          if (!navigator.geolocation) reject(new Error('GPS tidak didukung.'));
+          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true });
+        });
 
-      const KANTOR_LAT = -6.238934;  
-      const KANTOR_LON = 106.803024; 
-      const BATAS_JARAK_METER = 50; 
+        const KANTOR_LAT = -6.238934;  
+        const KANTOR_LON = 106.803024; 
+        const BATAS_JARAK_METER = 200; 
 
-      const jarak = hitungJarakMeter(posisi.coords.latitude, posisi.coords.longitude, KANTOR_LAT, KANTOR_LON);
+        const jarak = hitungJarakMeter(posisi.coords.latitude, posisi.coords.longitude, KANTOR_LAT, KANTOR_LON);
 
-      if (jarak > BATAS_JARAK_METER) {
-        toast.dismiss(loadingToast);
-        toast.error(`Anda terlalu jauh! Jarak Anda: ${Math.round(jarak)} meter dari titik absen.`);
-        setLoading(false);
-        return;
+        if (jarak > BATAS_JARAK_METER) {
+          toast.dismiss(loadingToast);
+          toast.error(`Anda terlalu jauh! Jarak Anda: ${Math.round(jarak)} meter dari titik absen.`);
+          setLoading(false);
+          return;
+        }
+        toast.loading('Lokasi terkonfirmasi. Menyimpan data...', { id: loadingToast });
+      } else {
+        // Jika statusnya Izin/Sakit, langsung proses simpan tanpa cek GPS
+        loadingToast = toast.loading('Menyimpan keterangan absen...');
       }
-
-      toast.loading('Lokasi terkonfirmasi. Menyimpan data absensi...', { id: loadingToast });
       
+      // Menyimpan data beserta STATUS KEHADIRAN ke Firebase
       await addDoc(collection(db, 'absensi_harian'), { 
         nama_pegawai: nama, 
+        status_kehadiran: statusKehadiran,
         waktu_masuk: new Date().toISOString() 
       });
       
       toast.dismiss(loadingToast);
-      toast.success('Absen berhasil!'); 
+      toast.success(`Berhasil mencatat status: ${statusKehadiran}`); 
       setNama('');
+      setStatusKehadiran('Hadir'); // Kembalikan ke default setelah sukses
     } catch (error) {
       toast.dismiss(loadingToast);
-      toast.error('Gagal membaca lokasi. Pastikan GPS aktif dan diizinkan oleh browser!');
+      toast.error('Gagal memproses absensi.');
     } finally {
       setLoading(false);
     }
@@ -199,14 +202,22 @@ export default function Home() {
     }
   };
 
+  // --- PEMBARUAN EKSPOR: Menambahkan Kolom Status ---
   const unduhExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(daftarAbsenTerfilter.map(a => ({"Nama": a.nama_pegawai, "Waktu": new Date(a.waktu_masuk).toLocaleString('id-ID')})));
+    const ws = XLSX.utils.json_to_sheet(daftarAbsenTerfilter.map(a => ({
+      "Nama Pegawai": a.nama_pegawai, 
+      "Status": a.status_kehadiran || 'Hadir', // Fallback untuk data lama
+      "Waktu": new Date(a.waktu_masuk).toLocaleString('id-ID')
+    })));
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Laporan"); XLSX.writeFile(wb, "Laporan.xlsx");
   };
 
   const unduhPDF = () => {
     const doc = new jsPDF();
-    autoTable(doc, { head: [['Nama', 'Waktu']], body: daftarAbsenTerfilter.map(a => [a.nama_pegawai, new Date(a.waktu_masuk).toLocaleString('id-ID')]) });
+    autoTable(doc, { 
+      head: [['Nama Pegawai', 'Status', 'Waktu']], 
+      body: daftarAbsenTerfilter.map(a => [a.nama_pegawai, a.status_kehadiran || 'Hadir', new Date(a.waktu_masuk).toLocaleString('id-ID')]) 
+    });
     doc.save("Laporan.pdf");
   };
 
@@ -220,7 +231,6 @@ export default function Home() {
         <button onClick={handleLogout} style={{ padding: '0.5rem 1rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>Logout</button>
       </div>
 
-      {/* DASHBOARD STATISTIK (HANYA UNTUK ADMIN) */}
       {isAdmin && (
         <div style={{ marginBottom: '2rem', padding: '1.5rem', background: 'white', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
           <h2 style={{ marginTop: 0, color: '#001f3f', fontSize: '1.2rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Dashboard Statistik</h2>
@@ -241,11 +251,32 @@ export default function Home() {
           </div>
         </div>
       )}
-      {/* AKHIR DASHBOARD STATISTIK */}
 
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem' }}>
-        <input value={nama} onChange={(e) => setNama(e.target.value)} placeholder="Masukkan Nama atau NRP" style={{ padding: '0.8rem', flex: 1, maxWidth: '350px', borderRadius: '5px', border: '1px solid #ccc' }} />
-        <button onClick={handleAbsen} disabled={loading} style={{ padding: '0.8rem 1.5rem', background: '#001f3f', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>{loading ? 'Memeriksa...' : 'Absen'}</button>
+      {/* --- FORM INPUT DIPERBARUI DENGAN DROPDOWN STATUS --- */}
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+        <input 
+          value={nama} 
+          onChange={(e) => setNama(e.target.value)} 
+          placeholder="Masukkan Nama atau NRP" 
+          style={{ padding: '0.8rem', flex: 1, minWidth: '200px', borderRadius: '5px', border: '1px solid #ccc' }} 
+        />
+        <select 
+          value={statusKehadiran} 
+          onChange={(e) => setStatusKehadiran(e.target.value)} 
+          style={{ padding: '0.8rem', borderRadius: '5px', border: '1px solid #ccc', background: 'white', fontWeight: 'bold' }}
+        >
+          <option value="Hadir">✔️ Hadir</option>
+          <option value="Sakit">💊 Sakit</option>
+          <option value="Izin">📄 Izin</option>
+          <option value="Dinas Luar">🚗 Dinas Luar</option>
+        </select>
+        <button 
+          onClick={handleAbsen} 
+          disabled={loading} 
+          style={{ padding: '0.8rem 1.5rem', background: '#001f3f', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
+        >
+          {loading ? 'Memproses...' : 'Kirim'}
+        </button>
       </div>
 
       <div style={{ background: '#f9f9f9', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', display: 'flex', gap: '15px', flexWrap: 'wrap', border: '1px solid #ddd' }}>
@@ -268,11 +299,23 @@ export default function Home() {
 
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
-          <thead><tr style={{ background: '#f4f4f4' }}><th style={{ padding: '12px', border: '1px solid #ddd' }}>Nama</th><th style={{ padding: '12px', border: '1px solid #ddd' }}>Waktu</th>{isAdmin && <th style={{ padding: '12px', border: '1px solid #ddd' }}>Aksi</th>}</tr></thead>
+          <thead>
+            <tr style={{ background: '#f4f4f4' }}>
+              <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>Nama</th>
+              {/* KOLOM STATUS DI TABEL */}
+              <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>Status</th>
+              <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>Waktu</th>
+              {isAdmin && <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>Aksi</th>}
+            </tr>
+          </thead>
           <tbody>
             {dataTampil.map((a) => (
               <tr key={a.id}>
                 <td style={{ padding: '12px', border: '1px solid #ddd' }}>{a.nama_pegawai}</td>
+                {/* MENAMPILKAN DATA STATUS DI TABEL (Jika kosong, tampilkan Hadir) */}
+                <td style={{ padding: '12px', border: '1px solid #ddd', fontWeight: 'bold', color: a.status_kehadiran === 'Sakit' ? '#dc3545' : a.status_kehadiran === 'Izin' ? '#fd7e14' : a.status_kehadiran === 'Dinas Luar' ? '#0dcaf0' : '#28a745' }}>
+                  {a.status_kehadiran || 'Hadir'}
+                </td>
                 <td style={{ padding: '12px', border: '1px solid #ddd' }}>{new Date(a.waktu_masuk).toLocaleString('id-ID')}</td>
                 {isAdmin && <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>
                   <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
