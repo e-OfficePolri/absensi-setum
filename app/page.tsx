@@ -22,7 +22,7 @@ export default function Home() {
   const [filterTanggal, setFilterTanggal] = useState('');
 
   // TENTUKAN EMAIL ADMIN DI SINI
-  const EMAIL_ADMIN = "admin@setum.id";
+  const EMAIL_ADMIN = "98010786@polri.go.id";
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
