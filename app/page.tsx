@@ -31,16 +31,10 @@ export default function Home() {
     handleAbsen, handleEdit, handleHapus
   } = useAbsensi(isCheckingAuth);
 
-  const [statusKehadiran, setStatusKehadiran] = useState('Hadir');
-  const [loading, setLoading] = useState(false);
-  const [daftarAbsen, setDaftarAbsen] = useState<any[]>([]);
-  const [daftarPegawai, setDaftarPegawai] = useState<any[]>([]);
-
   const [filterTanggal, setFilterTanggal] = useState('');
   const [filterBulan, setFilterBulan] = useState('');
   const [kataKunci, setKataKunci] = useState('');
-  const [kameraTerbuka, setKameraTerbuka] = useState(false);
-  
+   
   const [halamanSaatIni, setHalamanSaatIni] = useState(1);
   const barisPerHalaman = 10;
 
