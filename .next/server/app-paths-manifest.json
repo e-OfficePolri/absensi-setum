@@ -1,0 +1,7 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/lupa-password/page": "app/lupa-password/page.js",
+  "/login/page": "app/login/page.js",
+  "/pegawai/page": "app/pegawai/page.js",
+  "/page": "app/page.js"
+}
