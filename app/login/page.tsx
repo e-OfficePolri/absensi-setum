@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // Tambahkan useEffect
 import { auth } from '../firebase'; 
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, onAuthStateChanged } from 'firebase/auth'; // Tambahkan onAuthStateChanged
 import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -12,6 +12,19 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   
   const router = useRouter(); 
+
+  // --- FITUR TAMBAHAN: Perlindungan Akses ---
+  // Mengecek apakah pengguna sudah login sebelumnya
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // Jika ternyata sudah login, langsung arahkan ke Dashboard
+        router.push('/');
+      }
+    });
+    // Membersihkan memori saat komponen ditutup
+    return () => unsubscribe();
+  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault(); 
@@ -26,7 +39,7 @@ export default function Login() {
       router.push('/'); 
     } catch (error) {
       toast.dismiss(loadingToast);
-      toast.error('Email/NRP atau Password salah.');
+      toast.error('Email atau Password salah.'); // Pesan error diubah agar lebih ramah
     } finally {
       setLoading(false);
     }
@@ -76,7 +89,7 @@ export default function Login() {
             <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#333' }}>Email</label>
             <input 
               type="email" 
-              placeholder="contoh: 123456@polri.go.id" 
+              placeholder="contoh: admin@polri.go.id" 
               value={email} 
               onChange={(e) => setEmail(e.target.value)} 
               required
@@ -95,7 +108,6 @@ export default function Login() {
               style={{ width: '100%', padding: '0.8rem', marginTop: '5px', borderRadius: '6px', border: '1px solid #ccc', boxSizing: 'border-box', fontSize: '1rem' }}
             />
             
-            {/* FITUR BARU: Tautan ke Halaman Lupa Password */}
             <div style={{ textAlign: 'right', marginTop: '8px' }}>
               <button 
                 type="button" 
@@ -134,4 +146,3 @@ export default function Login() {
     </main>
   );
 }
-
