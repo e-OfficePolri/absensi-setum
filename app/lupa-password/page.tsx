@@ -10,7 +10,21 @@ export default function LupaPassword() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const router = useRouter(); 
+  const router = useRouter();
+
+  // Menambahkan perlindungan agar pengguna yang sudah login langsung dilempar ke Dashboard
+  import { onAuthStateChanged } from 'firebase/auth';
+  import { useEffect } from 'react';
+
+  // Letakkan ini di bawah const router = useRouter();
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        router.push('/'); // Lempar ke halaman utama
+      }
+    });
+    return () => unsubscribe();
+  }, [router]);
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault(); 
