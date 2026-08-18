@@ -31,11 +31,14 @@ export default function Home() {
   const router = useRouter();
 
   const [nama, setNama] = useState('');
-  // --- STATE BARU UNTUK STATUS KEHADIRAN ---
   const [statusKehadiran, setStatusKehadiran] = useState('Hadir');
   
   const [loading, setLoading] = useState(false);
   const [daftarAbsen, setDaftarAbsen] = useState<any[]>([]);
+  
+  // --- STATE BARU: Menyimpan daftar pegawai dari database ---
+  const [daftarPegawai, setDaftarPegawai] = useState<any[]>([]);
+
   const [filterTanggal, setFilterTanggal] = useState('');
   const [kataKunci, setKataKunci] = useState('');
   
@@ -56,6 +59,7 @@ export default function Home() {
     return () => unsubscribeAuth();
   }, [router]);
 
+  // Mengambil data absensi harian
   useEffect(() => {
     if (isCheckingAuth) return; 
     const q = query(collection(db, 'absensi_harian'), orderBy('waktu_masuk', 'desc'));
@@ -63,6 +67,16 @@ export default function Home() {
       setDaftarAbsen(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });
     return () => unsubscribeData();
+  }, [isCheckingAuth]);
+
+  // --- EFEK BARU: Mengambil daftar pegawai resmi dari database ---
+  useEffect(() => {
+    if (isCheckingAuth) return;
+    const q = query(collection(db, 'pegawai'), orderBy('nama', 'asc'));
+    const unsubscribePegawai = onSnapshot(q, (snapshot) => {
+      setDaftarPegawai(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribePegawai();
   }, [isCheckingAuth]);
 
   const hitungStatistik = () => {
@@ -73,7 +87,6 @@ export default function Home() {
     daftarAbsen.forEach((absen) => {
       const tanggal = absen.waktu_masuk?.split('T')[0];
       if (tanggal) {
-        // Hanya menghitung grafik untuk yang statusnya "Hadir" atau data lama yang belum punya status
         const isHadir = !absen.status_kehadiran || absen.status_kehadiran === 'Hadir';
         if (isHadir) {
           if (tanggal === tanggalHariIni) kehadiranHariIni += 1;
@@ -132,16 +145,15 @@ export default function Home() {
       return;
     }
 
-    if (!nama) { toast.error('Mohon masukkan nama!'); return; }
+    if (!nama) { toast.error('Mohon pilih nama Anda dari daftar!'); return; }
     
-    const sudahAbsen = daftarAbsen.some((a) => a.nama_pegawai.toLowerCase() === nama.toLowerCase() && a.waktu_masuk.split('T')[0] === new Date().toISOString().split('T')[0]);
+    const sudahAbsen = daftarAbsen.some((a) => a.nama_pegawai === nama && a.waktu_masuk.split('T')[0] === new Date().toISOString().split('T')[0]);
     if (sudahAbsen) { toast.error('Sudah absen hari ini!'); return; }
 
     setLoading(true);
     let loadingToast;
 
     try {
-      // LOGIKA PINTAR: Cek GPS HANYA jika statusnya "Hadir" atau "Dinas Luar"
       if (statusKehadiran === 'Hadir' || statusKehadiran === 'Dinas Luar') {
         loadingToast = toast.loading('Memeriksa lokasi GPS Anda...');
         
@@ -164,11 +176,9 @@ export default function Home() {
         }
         toast.loading('Lokasi terkonfirmasi. Menyimpan data...', { id: loadingToast });
       } else {
-        // Jika statusnya Izin/Sakit, langsung proses simpan tanpa cek GPS
         loadingToast = toast.loading('Menyimpan keterangan absen...');
       }
       
-      // Menyimpan data beserta STATUS KEHADIRAN ke Firebase
       await addDoc(collection(db, 'absensi_harian'), { 
         nama_pegawai: nama, 
         status_kehadiran: statusKehadiran,
@@ -178,7 +188,7 @@ export default function Home() {
       toast.dismiss(loadingToast);
       toast.success(`Berhasil mencatat status: ${statusKehadiran}`); 
       setNama('');
-      setStatusKehadiran('Hadir'); // Kembalikan ke default setelah sukses
+      setStatusKehadiran('Hadir'); 
     } catch (error) {
       toast.dismiss(loadingToast);
       toast.error('Gagal memproses absensi.');
@@ -202,11 +212,10 @@ export default function Home() {
     }
   };
 
-  // --- PEMBARUAN EKSPOR: Menambahkan Kolom Status ---
   const unduhExcel = () => {
     const ws = XLSX.utils.json_to_sheet(daftarAbsenTerfilter.map(a => ({
       "Nama Pegawai": a.nama_pegawai, 
-      "Status": a.status_kehadiran || 'Hadir', // Fallback untuk data lama
+      "Status": a.status_kehadiran || 'Hadir', 
       "Waktu": new Date(a.waktu_masuk).toLocaleString('id-ID')
     })));
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Laporan"); XLSX.writeFile(wb, "Laporan.xlsx");
@@ -235,7 +244,7 @@ export default function Home() {
         <div style={{ marginBottom: '2rem', padding: '1.5rem', background: 'white', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
             <h2 style={{ marginTop: 0, color: '#001f3f', fontSize: '1.2rem' }}>Dashboard Statistik</h2>
-            {/* Tombol Baru untuk ke Manajemen Pegawai */}
+            {/* TOMBOL NAVIGASI MENUJU HALAMAN PEGAWAI */}
             <button 
               onClick={() => router.push('/pegawai')} 
               style={{ padding: '0.5rem 1rem', background: '#17a2b8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
@@ -260,14 +269,21 @@ export default function Home() {
         </div>
       )}
 
-      {/* --- FORM INPUT DIPERBARUI DENGAN DROPDOWN STATUS --- */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-        <input 
+        {/* --- PERUBAHAN UTAMA: MENGGANTI INPUT MENJADI SELECT DROPDOWN --- */}
+        <select 
           value={nama} 
           onChange={(e) => setNama(e.target.value)} 
-          placeholder="Masukkan Nama atau NRP" 
-          style={{ padding: '0.8rem', flex: 1, minWidth: '200px', borderRadius: '5px', border: '1px solid #ccc' }} 
-        />
+          style={{ padding: '0.8rem', flex: 1, minWidth: '200px', borderRadius: '5px', border: '1px solid #ccc', background: 'white' }} 
+        >
+          <option value="" disabled>-- Pilih Nama Pegawai --</option>
+          {daftarPegawai.map((pegawai) => (
+            <option key={pegawai.id} value={pegawai.nama}>
+              {pegawai.nama} - {pegawai.nrp}
+            </option>
+          ))}
+        </select>
+
         <select 
           value={statusKehadiran} 
           onChange={(e) => setStatusKehadiran(e.target.value)} 
@@ -278,6 +294,7 @@ export default function Home() {
           <option value="Izin">📄 Izin</option>
           <option value="Dinas Luar">🚗 Dinas Luar</option>
         </select>
+        
         <button 
           onClick={handleAbsen} 
           disabled={loading} 
@@ -310,7 +327,6 @@ export default function Home() {
           <thead>
             <tr style={{ background: '#f4f4f4' }}>
               <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>Nama</th>
-              {/* KOLOM STATUS DI TABEL */}
               <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>Status</th>
               <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>Waktu</th>
               {isAdmin && <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>Aksi</th>}
@@ -320,7 +336,6 @@ export default function Home() {
             {dataTampil.map((a) => (
               <tr key={a.id}>
                 <td style={{ padding: '12px', border: '1px solid #ddd' }}>{a.nama_pegawai}</td>
-                {/* MENAMPILKAN DATA STATUS DI TABEL (Jika kosong, tampilkan Hadir) */}
                 <td style={{ padding: '12px', border: '1px solid #ddd', fontWeight: 'bold', color: a.status_kehadiran === 'Sakit' ? '#dc3545' : a.status_kehadiran === 'Izin' ? '#fd7e14' : a.status_kehadiran === 'Dinas Luar' ? '#0dcaf0' : '#28a745' }}>
                   {a.status_kehadiran || 'Hadir'}
                 </td>
@@ -345,4 +360,3 @@ export default function Home() {
     </main>
   );
 }
-
