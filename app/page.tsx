@@ -59,22 +59,28 @@ export default function Home() {
     return () => unsubscribeAuth();
   }, [router]);
 
-  // Mengambil data absensi harian
+  // 1. Mengambil data absensi harian
   useEffect(() => {
     if (isCheckingAuth) return; 
     const q = query(collection(db, 'absensi_harian'), orderBy('waktu_masuk', 'desc'));
     const unsubscribeData = onSnapshot(q, (snapshot) => {
       setDaftarAbsen(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      // FITUR BARU: Mengabaikan error permission-denied saat sedang proses logout
+      console.log("Info: Sesi berakhir, menghentikan penarikan data absen.");
     });
     return () => unsubscribeData();
   }, [isCheckingAuth]);
 
-  // --- EFEK BARU: Mengambil daftar pegawai resmi dari database ---
+  // 2. Mengambil daftar pegawai resmi dari database
   useEffect(() => {
     if (isCheckingAuth) return;
     const q = query(collection(db, 'pegawai'), orderBy('nama', 'asc'));
     const unsubscribePegawai = onSnapshot(q, (snapshot) => {
       setDaftarPegawai(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      // FITUR BARU: Mengabaikan error permission-denied saat sedang proses logout
+      console.log("Info: Sesi berakhir, menghentikan penarikan data pegawai.");
     });
     return () => unsubscribePegawai();
   }, [isCheckingAuth]);
