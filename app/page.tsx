@@ -41,6 +41,7 @@ export default function Home() {
   const [filterTanggal, setFilterTanggal] = useState('');
   const [filterBulan, setFilterBulan] = useState('');
   const [kataKunci, setKataKunci] = useState('');
+  const [kameraTerbuka, setKameraTerbuka] = useState(false);
   
   const [halamanSaatIni, setHalamanSaatIni] = useState(1);
   const barisPerHalaman = 10;
@@ -327,16 +328,36 @@ export default function Home() {
       <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', boxShadow: '0 8px 20px rgba(0,0,0,0.04)', marginBottom: '2.5rem' }}>
         <h2 style={{ margin: '0 0 1.5rem 0', color: '#001f3f', fontSize: '1.3rem', fontWeight: '700', borderBottom: '2px solid #eee', paddingBottom: '0.8rem' }}>Form Absensi</h2>
         
+        {/* Jika butuh kamera, kita tampilkan pilihan untuk membuka kamera */}
         {butuhKamera && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '1.5rem', background: '#f8f9fa', padding: '1.5rem', borderRadius: '12px', border: '1px dashed #ccc' }}>
-            <Webcam
-              audio={false}
-              ref={webcamRef}
-              screenshotFormat="image/jpeg"
-              videoConstraints={{ facingMode: "user" }} 
-              style={{ width: '100%', maxWidth: '280px', borderRadius: '12px', border: '4px solid #001f3f', boxShadow: '0 8px 16px rgba(0,0,0,0.15)' }}
-            />
-            <p style={{ fontSize: '0.95rem', color: '#001f3f', marginTop: '12px', fontWeight: 'bold' }}>📸 Posisikan wajah Anda di dalam bingkai</p>
+            
+            {/* Cek apakah kamera sedang terbuka atau tertutup */}
+            {!kameraTerbuka ? (
+              <button 
+                onClick={() => setKameraTerbuka(true)} 
+                style={{ padding: '0.9rem 2rem', background: '#17a2b8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}
+              >
+                📷 Buka Kamera untuk Absen
+              </button>
+            ) : (
+              <>
+                <Webcam
+                  audio={false}
+                  ref={webcamRef}
+                  screenshotFormat="image/jpeg"
+                  videoConstraints={{ facingMode: "user" }} 
+                  style={{ width: '100%', maxWidth: '280px', borderRadius: '12px', border: '4px solid #001f3f', boxShadow: '0 8px 16px rgba(0,0,0,0.15)' }}
+                />
+                <p style={{ fontSize: '0.95rem', color: '#001f3f', marginTop: '12px', fontWeight: 'bold' }}>📸 Posisikan wajah Anda di dalam bingkai</p>
+                <button 
+                  onClick={() => setKameraTerbuka(false)} 
+                  style={{ marginTop: '10px', padding: '0.5rem 1rem', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
+                >
+                  ❌ Tutup Kamera
+                </button>
+              </>
+            )}
           </div>
         )}
 
