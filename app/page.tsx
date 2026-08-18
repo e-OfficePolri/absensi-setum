@@ -170,7 +170,7 @@ export default function Home() {
         absenPegawaiHariIni={absenPegawaiHariIni}
         statusKehadiran={statusKehadiran}
         setStatusKehadiran={setStatusKehadiran}
-        handleAbsen={handleAbsen}
+        handleAbsen={() => handleAbsen(absenPegawaiHariIni, tanggalHariIni)}
         tombolDisable={tombolDisable}
         loading={loading}
         teksTombol={teksTombol}
