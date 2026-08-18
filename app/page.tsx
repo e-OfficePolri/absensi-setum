@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { db, auth, storage } from './firebase'; 
 import { collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc, updateDoc } from 'firebase/firestore'; 
-import { onAuthStateChanged, signOut } from 'firebase/auth'; 
 import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
@@ -17,13 +16,13 @@ import TabelAbsensi from './components/TabelAbsensi';
 import FormAbsensi from './components/FormAbsensi';
 import DashboardAdmin from './components/DashboardAdmin';
 import { hitungJarakMeter } from './utils/helper';
+import { useAuth } from './hooks/useAuth';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ChartTitle, Tooltip, Legend);
 
 export default function Home() {
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false); 
   const router = useRouter();
+  const { isCheckingAuth, isAdmin, handleLogout } = useAuth();
 
   const [nama, setNama] = useState('');
   const [statusKehadiran, setStatusKehadiran] = useState('Hadir');
@@ -40,20 +39,7 @@ export default function Home() {
   const barisPerHalaman = 10;
 
   const webcamRef = useRef<Webcam>(null);
-  const EMAIL_ADMIN = "98010786@polri.go.id";
-
-  useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setIsAdmin(user.email === EMAIL_ADMIN);
-        setIsCheckingAuth(false);
-      } else {
-        router.push('/login');
-      }
-    });
-    return () => unsubscribeAuth();
-  }, [router]);
-
+  
   useEffect(() => {
     if (isCheckingAuth) return; 
     const q = query(collection(db, 'absensi_harian'), orderBy('waktu_masuk', 'desc'));
@@ -116,8 +102,6 @@ export default function Home() {
   const dataTampil = daftarAbsenTerfilter.slice(indexPertama, indexTerakhir);
   const totalHalaman = Math.ceil(daftarAbsenTerfilter.length / barisPerHalaman);
   useEffect(() => { setHalamanSaatIni(1); }, [filterTanggal, filterBulan, kataKunci]);
-
-  const handleLogout = async () => { await signOut(auth); router.push('/login'); };
 
   const tanggalHariIni = new Date().toISOString().split('T')[0];
   const absenPegawaiHariIni = daftarAbsen.find((a) => a.nama_pegawai === nama && a.waktu_masuk?.startsWith(tanggalHariIni));
