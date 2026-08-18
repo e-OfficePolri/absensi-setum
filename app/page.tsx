@@ -233,7 +233,15 @@ export default function Home() {
 
       {isAdmin && (
         <div style={{ marginBottom: '2rem', padding: '1.5rem', background: 'white', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
-          <h2 style={{ marginTop: 0, color: '#001f3f', fontSize: '1.2rem', borderBottom: '1px solid #eee', paddingBottom: '0.5rem' }}>Dashboard Statistik</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
+            <h2 style={{ marginTop: 0, color: '#001f3f', fontSize: '1.2rem' }}>Dashboard Statistik</h2>
+            {/* Tombol Baru untuk ke Manajemen Pegawai */}
+            <button 
+              onClick={() => router.push('/pegawai')} 
+              style={{ padding: '0.5rem 1rem', background: '#17a2b8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
+              ⚙️ Kelola Data Pegawai
+            </button>
+          </div>
           
           <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
             <div style={{ flex: 1, minWidth: '150px', background: '#001f3f', color: 'white', padding: '1rem', borderRadius: '8px', textAlign: 'center' }}>
