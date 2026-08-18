@@ -37,9 +37,8 @@ export default function Home() {
   const [daftarAbsen, setDaftarAbsen] = useState<any[]>([]);
   const [daftarPegawai, setDaftarPegawai] = useState<any[]>([]);
 
-  // --- FILTER STATE ---
   const [filterTanggal, setFilterTanggal] = useState('');
-  const [filterBulan, setFilterBulan] = useState(''); // FITUR BARU: State untuk filter bulan
+  const [filterBulan, setFilterBulan] = useState('');
   const [kataKunci, setKataKunci] = useState('');
   
   const [halamanSaatIni, setHalamanSaatIni] = useState(1);
@@ -122,9 +121,7 @@ export default function Home() {
     scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
   };
 
-  // --- FITUR BARU: LOGIKA FILTER DITAMBAHKAN FILTER BULAN ---
   const daftarAbsenTerfilter = daftarAbsen.filter((absen) => {
-    // Memotong tanggal menjadi format "YYYY-MM-DD" dan bulan menjadi "YYYY-MM"
     const absenTanggal = absen.waktu_masuk?.split('T')[0];
     const absenBulan = absen.waktu_masuk?.substring(0, 7); 
 
@@ -140,64 +137,119 @@ export default function Home() {
   const dataTampil = daftarAbsenTerfilter.slice(indexPertama, indexTerakhir);
   const totalHalaman = Math.ceil(daftarAbsenTerfilter.length / barisPerHalaman);
 
-  // Reset halaman ke 1 jika admin mengganti filter pencarian
   useEffect(() => { setHalamanSaatIni(1); }, [filterTanggal, filterBulan, kataKunci]);
 
   const handleLogout = async () => { await signOut(auth); router.push('/login'); };
 
-  const handleAbsen = async () => {
-    const jamSekarang = new Date().getHours();
-    if (jamSekarang < 4 || jamSekarang >= 8) {
-      toast.error('Absen hanya dibuka pukul 04:00 - 08:00');
-      return;
-    }
+  // --- LOGIKA UNTUK MENENTUKAN TOMBOL ABSEN MASUK / PULANG ---
+  const tanggalHariIni = new Date().toISOString().split('T')[0];
+  const absenPegawaiHariIni = daftarAbsen.find((a) => a.nama_pegawai === nama && a.waktu_masuk?.startsWith(tanggalHariIni));
+  
+  let teksTombol = 'Absen Masuk';
+  let tombolDisable = loading;
+  let warnaTombol = '#001f3f'; // Biru navy
 
+  if (absenPegawaiHariIni) {
+    if (absenPegawaiHariIni.waktu_pulang) {
+      teksTombol = 'Selesai (Sudah Absen)';
+      tombolDisable = true;
+      warnaTombol = '#6c757d'; // Abu-abu
+    } else {
+      teksTombol = 'Absen Pulang';
+      warnaTombol = '#dc3545'; // Merah
+    }
+  }
+
+  // --- FUNGSI PROSES ABSEN MASUK & PULANG ---
+  const handleAbsen = async () => {
     if (!nama) { toast.error('Mohon pilih nama Anda dari daftar!'); return; }
     
-    const sudahAbsen = daftarAbsen.some((a) => a.nama_pegawai === nama && a.waktu_masuk.split('T')[0] === new Date().toISOString().split('T')[0]);
-    if (sudahAbsen) { toast.error('Sudah absen hari ini!'); return; }
-
+    const jamSekarang = new Date().getHours();
     setLoading(true);
     let loadingToast;
 
     try {
-      if (statusKehadiran === 'Hadir' || statusKehadiran === 'Dinas Luar') {
+      // PROSES ABSEN PULANG
+      if (absenPegawaiHariIni && !absenPegawaiHariIni.waktu_pulang) {
+        // Validasi Jam Pulang (contoh: buka dari jam 15:00 sampai 18:00)
+        if (jamSekarang < 15 || jamSekarang >= 18) {
+          toast.error('Absen Pulang hanya dibuka pukul 15:00 - 18:00');
+          setLoading(false);
+          return;
+        }
+
         loadingToast = toast.loading('Memeriksa lokasi GPS Anda...');
         
+        // Pengecekan GPS (Opsional, jika ingin GPS aktif saat pulang juga)
         const posisi = await new Promise<GeolocationPosition>((resolve, reject) => {
           if (!navigator.geolocation) reject(new Error('GPS tidak didukung.'));
           navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true });
         });
 
-        const KANTOR_LAT = -6.238934;  
-        const KANTOR_LON = 106.803024; 
-        const BATAS_JARAK_METER = 200; 
-
+        const KANTOR_LAT = -6.238934; const KANTOR_LON = 106.803024; const BATAS_JARAK_METER = 200; 
         const jarak = hitungJarakMeter(posisi.coords.latitude, posisi.coords.longitude, KANTOR_LAT, KANTOR_LON);
-
         if (jarak > BATAS_JARAK_METER) {
           toast.dismiss(loadingToast);
-          toast.error(`Anda terlalu jauh! Jarak Anda: ${Math.round(jarak)} meter dari titik absen.`);
+          toast.error(`Anda terlalu jauh! Jarak Anda: ${Math.round(jarak)} meter.`);
           setLoading(false);
           return;
         }
-        toast.loading('Lokasi terkonfirmasi. Menyimpan data...', { id: loadingToast });
-      } else {
-        loadingToast = toast.loading('Menyimpan keterangan absen...');
+
+        toast.loading('Menyimpan Absen Pulang...', { id: loadingToast });
+        
+        // Memperbarui data yang sudah ada dengan waktu_pulang
+        await updateDoc(doc(db, 'absensi_harian', absenPegawaiHariIni.id), {
+          waktu_pulang: new Date().toISOString()
+        });
+
+        toast.dismiss(loadingToast);
+        toast.success(`Hati-hati di jalan, ${nama}!`); 
+      } 
+      
+      // PROSES ABSEN MASUK
+      else {
+        // Validasi Jam Masuk (contoh: buka dari jam 04:00 sampai 08:00)
+        if (jamSekarang < 4 || jamSekarang >= 8) {
+          toast.error('Absen Masuk hanya dibuka pukul 04:00 - 08:00');
+          setLoading(false);
+          return;
+        }
+
+        if (statusKehadiran === 'Hadir' || statusKehadiran === 'Dinas Luar') {
+          loadingToast = toast.loading('Memeriksa lokasi GPS Anda...');
+          const posisi = await new Promise<GeolocationPosition>((resolve, reject) => {
+            if (!navigator.geolocation) reject(new Error('GPS tidak didukung.'));
+            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true });
+          });
+
+          const KANTOR_LAT = -6.238934; const KANTOR_LON = 106.803024; const BATAS_JARAK_METER = 200; 
+          const jarak = hitungJarakMeter(posisi.coords.latitude, posisi.coords.longitude, KANTOR_LAT, KANTOR_LON);
+
+          if (jarak > BATAS_JARAK_METER) {
+            toast.dismiss(loadingToast);
+            toast.error(`Anda terlalu jauh! Jarak Anda: ${Math.round(jarak)} meter dari titik absen.`);
+            setLoading(false);
+            return;
+          }
+          toast.loading('Lokasi terkonfirmasi. Menyimpan data...', { id: loadingToast });
+        } else {
+          loadingToast = toast.loading('Menyimpan keterangan absen...');
+        }
+        
+        await addDoc(collection(db, 'absensi_harian'), { 
+          nama_pegawai: nama, 
+          status_kehadiran: statusKehadiran,
+          waktu_masuk: new Date().toISOString() 
+        });
+        
+        toast.dismiss(loadingToast);
+        toast.success(`Berhasil mencatat status: ${statusKehadiran}`); 
       }
       
-      await addDoc(collection(db, 'absensi_harian'), { 
-        nama_pegawai: nama, 
-        status_kehadiran: statusKehadiran,
-        waktu_masuk: new Date().toISOString() 
-      });
-      
-      toast.dismiss(loadingToast);
-      toast.success(`Berhasil mencatat status: ${statusKehadiran}`); 
       setNama('');
       setStatusKehadiran('Hadir'); 
     } catch (error) {
-      toast.dismiss(loadingToast);
+      if (loadingToast) toast.dismiss(loadingToast);
       toast.error('Gagal memproses absensi.');
     } finally {
       setLoading(false);
@@ -223,7 +275,8 @@ export default function Home() {
     const ws = XLSX.utils.json_to_sheet(daftarAbsenTerfilter.map(a => ({
       "Nama Pegawai": a.nama_pegawai, 
       "Status": a.status_kehadiran || 'Hadir', 
-      "Waktu": new Date(a.waktu_masuk).toLocaleString('id-ID')
+      "Waktu Masuk": new Date(a.waktu_masuk).toLocaleString('id-ID'),
+      "Waktu Pulang": a.waktu_pulang ? new Date(a.waktu_pulang).toLocaleString('id-ID') : 'Belum Pulang'
     })));
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Laporan"); XLSX.writeFile(wb, "Laporan.xlsx");
   };
@@ -231,8 +284,13 @@ export default function Home() {
   const unduhPDF = () => {
     const doc = new jsPDF();
     autoTable(doc, { 
-      head: [['Nama Pegawai', 'Status', 'Waktu']], 
-      body: daftarAbsenTerfilter.map(a => [a.nama_pegawai, a.status_kehadiran || 'Hadir', new Date(a.waktu_masuk).toLocaleString('id-ID')]) 
+      head: [['Nama Pegawai', 'Status', 'Masuk', 'Pulang']], 
+      body: daftarAbsenTerfilter.map(a => [
+        a.nama_pegawai, 
+        a.status_kehadiran || 'Hadir', 
+        new Date(a.waktu_masuk).toLocaleTimeString('id-ID'),
+        a.waktu_pulang ? new Date(a.waktu_pulang).toLocaleTimeString('id-ID') : '-'
+      ]) 
     });
     doc.save("Laporan.pdf");
   };
@@ -240,7 +298,7 @@ export default function Home() {
   if (isCheckingAuth) return <div style={{ padding: '2rem', textAlign: 'center' }}>Memeriksa keamanan...</div>;
 
   return (
-    <main style={{ padding: '2rem', fontFamily: 'Arial, sans-serif', maxWidth: '800px', margin: '0 auto' }}>
+    <main style={{ padding: '2rem', fontFamily: 'Arial, sans-serif', maxWidth: '900px', margin: '0 auto' }}>
       <Toaster position="top-center" />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '2px solid #eee', paddingBottom: '1rem' }}>
         <h1 style={{ margin: 0, fontSize: '1.8rem', color: '#001f3f' }}>Absensi Setum Polri</h1>
@@ -275,6 +333,7 @@ export default function Home() {
         </div>
       )}
 
+      {/* --- FORM ABSENSI --- */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         <select 
           value={nama} 
@@ -289,70 +348,54 @@ export default function Home() {
           ))}
         </select>
 
-        <select 
-          value={statusKehadiran} 
-          onChange={(e) => setStatusKehadiran(e.target.value)} 
-          style={{ padding: '0.8rem', borderRadius: '5px', border: '1px solid #ccc', background: 'white', fontWeight: 'bold' }}
-        >
-          <option value="Hadir">✔️ Hadir</option>
-          <option value="Sakit">💊 Sakit</option>
-          <option value="Izin">📄 Izin</option>
-          <option value="Dinas Luar">🚗 Dinas Luar</option>
-        </select>
+        {/* Jika tombol berubah jadi 'Absen Pulang', kita sembunyikan status kehadiran agar tidak bingung */}
+        {(!absenPegawaiHariIni || absenPegawaiHariIni.waktu_pulang) && (
+          <select 
+            value={statusKehadiran} 
+            onChange={(e) => setStatusKehadiran(e.target.value)} 
+            style={{ padding: '0.8rem', borderRadius: '5px', border: '1px solid #ccc', background: 'white', fontWeight: 'bold' }}
+          >
+            <option value="Hadir">✔️ Hadir</option>
+            <option value="Sakit">💊 Sakit</option>
+            <option value="Izin">📄 Izin</option>
+            <option value="Dinas Luar">🚗 Dinas Luar</option>
+          </select>
+        )}
         
+        {/* --- TOMBOL ABSEN YANG BISA BERUBAH WARNA DAN TEKS --- */}
         <button 
           onClick={handleAbsen} 
-          disabled={loading} 
-          style={{ padding: '0.8rem 1.5rem', background: '#001f3f', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}
+          disabled={tombolDisable} 
+          style={{ 
+            padding: '0.8rem 1.5rem', 
+            background: warnaTombol, 
+            color: 'white', 
+            border: 'none', 
+            borderRadius: '5px', 
+            cursor: tombolDisable ? 'not-allowed' : 'pointer', 
+            fontWeight: 'bold',
+            minWidth: '150px'
+          }}
         >
-          {loading ? 'Memproses...' : 'Absen'}
+          {loading ? 'Memproses...' : teksTombol}
         </button>
       </div>
 
-      {/* --- FITUR BARU: KOTAK PENCARIAN & FILTER DIPERBARUI --- */}
       <div style={{ background: '#f9f9f9', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', display: 'flex', gap: '15px', flexWrap: 'wrap', border: '1px solid #ddd' }}>
         <div>
           <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold' }}>Filter Bulan:</label>
-          <input 
-            type="month" 
-            value={filterBulan} 
-            onChange={(e) => {
-              setFilterBulan(e.target.value);
-              setFilterTanggal(''); // Reset harian jika memilih bulan
-            }} 
-            style={{ padding: '0.5rem', borderRadius: '5px', border: '1px solid #ccc', width: '140px' }} 
-          />
+          <input type="month" value={filterBulan} onChange={(e) => { setFilterBulan(e.target.value); setFilterTanggal(''); }} style={{ padding: '0.5rem', borderRadius: '5px', border: '1px solid #ccc', width: '140px' }} />
         </div>
         <div>
           <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold' }}>Filter Tanggal:</label>
-          <input 
-            type="date" 
-            value={filterTanggal} 
-            onChange={(e) => {
-              setFilterTanggal(e.target.value);
-              setFilterBulan(''); // Reset bulan jika memilih harian
-            }} 
-            style={{ padding: '0.5rem', borderRadius: '5px', border: '1px solid #ccc', width: '130px' }} 
-          />
+          <input type="date" value={filterTanggal} onChange={(e) => { setFilterTanggal(e.target.value); setFilterBulan(''); }} style={{ padding: '0.5rem', borderRadius: '5px', border: '1px solid #ccc', width: '130px' }} />
         </div>
         <div style={{ flex: 1, minWidth: '150px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold' }}>Cari Nama Pegawai:</label>
-          <input 
-            placeholder="Ketik nama..." 
-            value={kataKunci} 
-            onChange={(e) => setKataKunci(e.target.value)} 
-            style={{ width: '100%', padding: '0.5rem', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }} 
-          />
+          <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold' }}>Cari Nama:</label>
+          <input placeholder="Ketik nama..." value={kataKunci} onChange={(e) => setKataKunci(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
         </div>
-        
-        {/* Tombol Reset Filter */}
         <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-          <button 
-            onClick={() => { setFilterBulan(''); setFilterTanggal(''); setKataKunci(''); }}
-            style={{ padding: '0.5rem 1rem', background: '#6c757d', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '0.85rem', height: '36px' }}
-          >
-            Reset
-          </button>
+          <button onClick={() => { setFilterBulan(''); setFilterTanggal(''); setKataKunci(''); }} style={{ padding: '0.5rem 1rem', background: '#6c757d', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '0.85rem', height: '36px' }}>Reset</button>
         </div>
       </div>
 
@@ -369,14 +412,16 @@ export default function Home() {
             <tr style={{ background: '#f4f4f4' }}>
               <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>Nama</th>
               <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>Status</th>
-              <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>Waktu</th>
+              {/* KOLOM BARU UNTUK TABEL */}
+              <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>Masuk</th>
+              <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>Pulang</th>
               {isAdmin && <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>Aksi</th>}
             </tr>
           </thead>
           <tbody>
             {dataTampil.length === 0 ? (
               <tr>
-                <td colSpan={isAdmin ? 4 : 3} style={{ padding: '1rem', textAlign: 'center', color: '#666' }}>Tidak ada data yang ditemukan.</td>
+                <td colSpan={isAdmin ? 5 : 4} style={{ padding: '1rem', textAlign: 'center', color: '#666' }}>Tidak ada data.</td>
               </tr>
             ) : (
               dataTampil.map((a) => (
@@ -385,7 +430,15 @@ export default function Home() {
                   <td style={{ padding: '12px', border: '1px solid #ddd', fontWeight: 'bold', color: a.status_kehadiran === 'Sakit' ? '#dc3545' : a.status_kehadiran === 'Izin' ? '#fd7e14' : a.status_kehadiran === 'Dinas Luar' ? '#0dcaf0' : '#28a745' }}>
                     {a.status_kehadiran || 'Hadir'}
                   </td>
-                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>{new Date(a.waktu_masuk).toLocaleString('id-ID')}</td>
+                  
+                  {/* PENYESUAIAN TAMPILAN JAM MASUK & PULANG */}
+                  <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>
+                    {new Date(a.waktu_masuk).toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'})}
+                  </td>
+                  <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>
+                    {a.waktu_pulang ? new Date(a.waktu_pulang).toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'}) : '-'}
+                  </td>
+                  
                   {isAdmin && <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                       <button onClick={() => handleEdit(a.id, a.nama_pegawai)} style={{ padding: '0.3rem 0.6rem', background: '#ffc107', color: 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>Edit</button>
