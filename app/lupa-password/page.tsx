@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+// 1. IMPORT DILETAKKAN DI PALING ATAS (Perhatikan tambahan useEffect di sini)
+import { useState, useEffect } from 'react';
 import { auth } from '../firebase'; 
-import { sendPasswordResetEmail } from 'firebase/auth';
+// Perhatikan tambahan onAuthStateChanged di sini
+import { sendPasswordResetEmail, onAuthStateChanged } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -10,17 +12,13 @@ export default function LupaPassword() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const router = useRouter();
+  const router = useRouter(); 
 
-  // Menambahkan perlindungan agar pengguna yang sudah login langsung dilempar ke Dashboard
-  import { onAuthStateChanged } from 'firebase/auth';
-  import { useEffect } from 'react';
-
-  // Letakkan ini di bawah const router = useRouter();
+  // 2. KODE PERLINDUNGAN AKSES DILETAKKAN DI SINI
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        router.push('/'); // Lempar ke halaman utama
+        router.push('/'); // Lempar ke halaman utama jika sudah login
       }
     });
     return () => unsubscribe();
@@ -38,13 +36,11 @@ export default function LupaPassword() {
     const loadingToast = toast.loading('Mengirim tautan reset...');
 
     try {
-      // Perintah Firebase untuk mengirim email reset password
       await sendPasswordResetEmail(auth, email);
       
       toast.dismiss(loadingToast);
       toast.success('Tautan reset password telah dikirim ke email Anda!');
       
-      // Mengembalikan pengguna ke halaman login setelah 3 detik
       setTimeout(() => {
         router.push('/login');
       }, 3000);
@@ -63,7 +59,7 @@ export default function LupaPassword() {
       justifyContent: 'center', 
       alignItems: 'center', 
       minHeight: '100vh', 
-      backgroundColor: '#001f3f', // Background Biru Navy
+      backgroundColor: '#001f3f', 
       fontFamily: 'Arial, sans-serif',
       padding: '1rem'
     }}>
@@ -79,7 +75,6 @@ export default function LupaPassword() {
         textAlign: 'center'
       }}>
         
-        {/* Ikon Kunci untuk halaman Lupa Password */}
         <div style={{ 
           width: '70px', 
           height: '70px', 
@@ -138,7 +133,6 @@ export default function LupaPassword() {
           </button>
         </form>
 
-        {/* Tombol kembali ke Login */}
         <div style={{ marginTop: '1.5rem' }}>
           <button 
             onClick={() => router.push('/login')} 
@@ -151,4 +145,3 @@ export default function LupaPassword() {
     </main>
   );
 }
-
