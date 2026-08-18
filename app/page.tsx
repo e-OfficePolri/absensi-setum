@@ -35,11 +35,11 @@ export default function Home() {
   
   const [loading, setLoading] = useState(false);
   const [daftarAbsen, setDaftarAbsen] = useState<any[]>([]);
-  
-  // --- STATE BARU: Menyimpan daftar pegawai dari database ---
   const [daftarPegawai, setDaftarPegawai] = useState<any[]>([]);
 
+  // --- FILTER STATE ---
   const [filterTanggal, setFilterTanggal] = useState('');
+  const [filterBulan, setFilterBulan] = useState(''); // FITUR BARU: State untuk filter bulan
   const [kataKunci, setKataKunci] = useState('');
   
   const [halamanSaatIni, setHalamanSaatIni] = useState(1);
@@ -59,28 +59,24 @@ export default function Home() {
     return () => unsubscribeAuth();
   }, [router]);
 
-  // 1. Mengambil data absensi harian
   useEffect(() => {
     if (isCheckingAuth) return; 
     const q = query(collection(db, 'absensi_harian'), orderBy('waktu_masuk', 'desc'));
     const unsubscribeData = onSnapshot(q, (snapshot) => {
       setDaftarAbsen(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
-      // FITUR BARU: Mengabaikan error permission-denied saat sedang proses logout
-      console.log("Info: Sesi berakhir, menghentikan penarikan data absen.");
+      console.log("Info: Mengabaikan penarikan data absen saat logout.");
     });
     return () => unsubscribeData();
   }, [isCheckingAuth]);
 
-  // 2. Mengambil daftar pegawai resmi dari database
   useEffect(() => {
     if (isCheckingAuth) return;
     const q = query(collection(db, 'pegawai'), orderBy('nama', 'asc'));
     const unsubscribePegawai = onSnapshot(q, (snapshot) => {
       setDaftarPegawai(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
-      // FITUR BARU: Mengabaikan error permission-denied saat sedang proses logout
-      console.log("Info: Sesi berakhir, menghentikan penarikan data pegawai.");
+      console.log("Info: Mengabaikan penarikan data pegawai saat logout.");
     });
     return () => unsubscribePegawai();
   }, [isCheckingAuth]);
@@ -122,17 +118,21 @@ export default function Home() {
 
   const opsiChart = {
     responsive: true,
-    plugins: {
-      legend: { position: 'top' as const },
-      title: { display: true, text: 'Tren Kehadiran (7 Hari Terakhir)' },
-    },
+    plugins: { legend: { position: 'top' as const }, title: { display: true, text: 'Tren Kehadiran (7 Hari Terakhir)' } },
     scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
   };
 
+  // --- FITUR BARU: LOGIKA FILTER DITAMBAHKAN FILTER BULAN ---
   const daftarAbsenTerfilter = daftarAbsen.filter((absen) => {
-    const cocokTanggal = !filterTanggal || (absen.waktu_masuk?.split('T')[0] === filterTanggal);
+    // Memotong tanggal menjadi format "YYYY-MM-DD" dan bulan menjadi "YYYY-MM"
+    const absenTanggal = absen.waktu_masuk?.split('T')[0];
+    const absenBulan = absen.waktu_masuk?.substring(0, 7); 
+
+    const cocokTanggal = !filterTanggal || (absenTanggal === filterTanggal);
+    const cocokBulan = !filterBulan || (absenBulan === filterBulan);
     const cocokNama = !kataKunci || absen.nama_pegawai.toLowerCase().includes(kataKunci.toLowerCase());
-    return cocokTanggal && cocokNama;
+    
+    return cocokTanggal && cocokBulan && cocokNama;
   });
 
   const indexTerakhir = halamanSaatIni * barisPerHalaman;
@@ -140,7 +140,8 @@ export default function Home() {
   const dataTampil = daftarAbsenTerfilter.slice(indexPertama, indexTerakhir);
   const totalHalaman = Math.ceil(daftarAbsenTerfilter.length / barisPerHalaman);
 
-  useEffect(() => { setHalamanSaatIni(1); }, [filterTanggal, kataKunci]);
+  // Reset halaman ke 1 jika admin mengganti filter pencarian
+  useEffect(() => { setHalamanSaatIni(1); }, [filterTanggal, filterBulan, kataKunci]);
 
   const handleLogout = async () => { await signOut(auth); router.push('/login'); };
 
@@ -250,7 +251,6 @@ export default function Home() {
         <div style={{ marginBottom: '2rem', padding: '1.5rem', background: 'white', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', paddingBottom: '0.5rem', marginBottom: '1rem' }}>
             <h2 style={{ marginTop: 0, color: '#001f3f', fontSize: '1.2rem' }}>Dashboard Statistik</h2>
-            {/* TOMBOL NAVIGASI MENUJU HALAMAN PEGAWAI */}
             <button 
               onClick={() => router.push('/pegawai')} 
               style={{ padding: '0.5rem 1rem', background: '#17a2b8', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>
@@ -276,7 +276,6 @@ export default function Home() {
       )}
 
       <div style={{ display: 'flex', gap: '10px', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-        {/* --- PERUBAHAN UTAMA: MENGGANTI INPUT MENJADI SELECT DROPDOWN --- */}
         <select 
           value={nama} 
           onChange={(e) => setNama(e.target.value)} 
@@ -310,14 +309,50 @@ export default function Home() {
         </button>
       </div>
 
+      {/* --- FITUR BARU: KOTAK PENCARIAN & FILTER DIPERBARUI --- */}
       <div style={{ background: '#f9f9f9', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', display: 'flex', gap: '15px', flexWrap: 'wrap', border: '1px solid #ddd' }}>
         <div>
-          <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold' }}>Filter Tanggal:</label>
-          <input type="date" value={filterTanggal} onChange={(e) => setFilterTanggal(e.target.value)} style={{ padding: '0.5rem', borderRadius: '5px', border: '1px solid #ccc' }} />
+          <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold' }}>Filter Bulan:</label>
+          <input 
+            type="month" 
+            value={filterBulan} 
+            onChange={(e) => {
+              setFilterBulan(e.target.value);
+              setFilterTanggal(''); // Reset harian jika memilih bulan
+            }} 
+            style={{ padding: '0.5rem', borderRadius: '5px', border: '1px solid #ccc', width: '140px' }} 
+          />
         </div>
-        <div style={{ flex: 1, minWidth: '200px' }}>
-          <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold' }}>Cari Nama:</label>
-          <input placeholder="Ketik nama untuk mencari..." value={kataKunci} onChange={(e) => setKataKunci(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
+        <div>
+          <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold' }}>Filter Tanggal:</label>
+          <input 
+            type="date" 
+            value={filterTanggal} 
+            onChange={(e) => {
+              setFilterTanggal(e.target.value);
+              setFilterBulan(''); // Reset bulan jika memilih harian
+            }} 
+            style={{ padding: '0.5rem', borderRadius: '5px', border: '1px solid #ccc', width: '130px' }} 
+          />
+        </div>
+        <div style={{ flex: 1, minWidth: '150px' }}>
+          <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: 'bold' }}>Cari Nama Pegawai:</label>
+          <input 
+            placeholder="Ketik nama..." 
+            value={kataKunci} 
+            onChange={(e) => setKataKunci(e.target.value)} 
+            style={{ width: '100%', padding: '0.5rem', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }} 
+          />
+        </div>
+        
+        {/* Tombol Reset Filter */}
+        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <button 
+            onClick={() => { setFilterBulan(''); setFilterTanggal(''); setKataKunci(''); }}
+            style={{ padding: '0.5rem 1rem', background: '#6c757d', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontSize: '0.85rem', height: '36px' }}
+          >
+            Reset
+          </button>
         </div>
       </div>
 
@@ -339,21 +374,27 @@ export default function Home() {
             </tr>
           </thead>
           <tbody>
-            {dataTampil.map((a) => (
-              <tr key={a.id}>
-                <td style={{ padding: '12px', border: '1px solid #ddd' }}>{a.nama_pegawai}</td>
-                <td style={{ padding: '12px', border: '1px solid #ddd', fontWeight: 'bold', color: a.status_kehadiran === 'Sakit' ? '#dc3545' : a.status_kehadiran === 'Izin' ? '#fd7e14' : a.status_kehadiran === 'Dinas Luar' ? '#0dcaf0' : '#28a745' }}>
-                  {a.status_kehadiran || 'Hadir'}
-                </td>
-                <td style={{ padding: '12px', border: '1px solid #ddd' }}>{new Date(a.waktu_masuk).toLocaleString('id-ID')}</td>
-                {isAdmin && <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>
-                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                    <button onClick={() => handleEdit(a.id, a.nama_pegawai)} style={{ padding: '0.3rem 0.6rem', background: '#ffc107', color: 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>Edit</button>
-                    <button onClick={() => handleHapus(a.id)} style={{ padding: '0.3rem 0.6rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>Hapus</button>
-                  </div>
-                </td>}
+            {dataTampil.length === 0 ? (
+              <tr>
+                <td colSpan={isAdmin ? 4 : 3} style={{ padding: '1rem', textAlign: 'center', color: '#666' }}>Tidak ada data yang ditemukan.</td>
               </tr>
-            ))}
+            ) : (
+              dataTampil.map((a) => (
+                <tr key={a.id}>
+                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>{a.nama_pegawai}</td>
+                  <td style={{ padding: '12px', border: '1px solid #ddd', fontWeight: 'bold', color: a.status_kehadiran === 'Sakit' ? '#dc3545' : a.status_kehadiran === 'Izin' ? '#fd7e14' : a.status_kehadiran === 'Dinas Luar' ? '#0dcaf0' : '#28a745' }}>
+                    {a.status_kehadiran || 'Hadir'}
+                  </td>
+                  <td style={{ padding: '12px', border: '1px solid #ddd' }}>{new Date(a.waktu_masuk).toLocaleString('id-ID')}</td>
+                  {isAdmin && <td style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'center' }}>
+                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                      <button onClick={() => handleEdit(a.id, a.nama_pegawai)} style={{ padding: '0.3rem 0.6rem', background: '#ffc107', color: 'black', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>Edit</button>
+                      <button onClick={() => handleHapus(a.id)} style={{ padding: '0.3rem 0.6rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>Hapus</button>
+                    </div>
+                  </td>}
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
