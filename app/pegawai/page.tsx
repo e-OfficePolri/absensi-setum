@@ -8,17 +8,19 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 
-// 🌟 TAMBAHAN 1: Mengimpor fungsi pembuat akun yang baru saja kita buat
+// Mengimpor fungsi pembuat akun
 import { daftarkanAkunPersonel } from '../utils/buatAkunPersonel';
 
 export default function ManajemenPersonel() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const router = useRouter();
 
-  // State untuk form tambah data
+  // State untuk form tambah data (Sekarang ditambah Email dan Password)
   const [nama, setNama] = useState('');
   const [nrp, setNrp] = useState('');
   const [pangkat, setPangkat] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   
   const [loading, setLoading] = useState(false);
@@ -29,13 +31,6 @@ export default function ManajemenPersonel() {
   const [dataEdit, setDataEdit] = useState({ id: '', nama: '', nrp: '', pangkat: '', foto_url: '' }); 
   const [fotoFileEdit, setFotoFileEdit] = useState<File | null>(null); 
   const [loadingEdit, setLoadingEdit] = useState(false);
-
-  // 🌟 TAMBAHAN 2: State untuk Modal Buat Akun Login
-  const [isModalAkunBuka, setIsModalAkunBuka] = useState(false);
-  const [dataAkun, setDataAkun] = useState({ id: '', nama: '', email: '' });
-  const [emailBaru, setEmailBaru] = useState('');
-  const [passwordBaru, setPasswordBaru] = useState('');
-  const [loadingAkun, setLoadingAkun] = useState(false);
 
   const EMAIL_ADMIN = "98010786@polri.go.id";
 
@@ -72,9 +67,15 @@ export default function ManajemenPersonel() {
     }
   };
 
+  // FUNGSI TAMBAH DATA YANG SUDAH DIGABUNG DENGAN BUAT AKUN
   const handleTambahPersonel = async () => {
-    if (!nama || !nrp || !pangkat) { 
-      toast.error('Mohon isi Nama, NRP, dan Pangkat!'); 
+    // 1. Validasi Input
+    if (!nama || !nrp || !pangkat || !email || !password) { 
+      toast.error('Mohon isi semua data, termasuk Email dan Password!'); 
+      return; 
+    }
+    if (password.length < 6) {
+      toast.error('Password minimal 6 karakter!'); 
       return; 
     }
     if (!fotoFile) {
@@ -84,11 +85,13 @@ export default function ManajemenPersonel() {
 
     setLoading(true);
     try {
+      // 2. Unggah Foto ke Storage
       const fotoRef = ref(storage, `foto_pegawai/${Date.now()}_${fotoFile.name}`);
       await uploadBytes(fotoRef, fotoFile);
       const fotoUrl = await getDownloadURL(fotoRef);
 
-      await addDoc(collection(db, 'pegawai'), { 
+      // 3. Simpan data awal ke Firestore untuk mendapatkan ID Dokumen
+      const docRef = await addDoc(collection(db, 'pegawai'), { 
         nama: nama, 
         nrp: nrp,
         pangkat: pangkat,
@@ -96,17 +99,29 @@ export default function ManajemenPersonel() {
         dibuat_pada: new Date().toISOString()
       });
 
-      toast.success('Personel berhasil ditambahkan!');
+      // 4. Proses pembuatan akun login menggunakan ID Dokumen yang baru dibuat
+      const hasilAuth = await daftarkanAkunPersonel(docRef.id, email, password);
       
-      setNama('');
-      setNrp('');
-      setPangkat('');
-      setFotoFile(null);
-      const fileInput = document.getElementById('input-foto') as HTMLInputElement;
-      if (fileInput) fileInput.value = '';
+      if (hasilAuth.sukses) {
+        toast.success('Personel dan Akun Login berhasil ditambahkan!');
+        
+        // Bersihkan form setelah sukses
+        setNama('');
+        setNrp('');
+        setPangkat('');
+        setEmail('');
+        setPassword('');
+        setFotoFile(null);
+        const fileInput = document.getElementById('input-foto') as HTMLInputElement;
+        if (fileInput) fileInput.value = '';
+      } else {
+        // 5. Rollback: Jika gagal buat akun (misal email format salah), hapus data Firestore yang tadi sempat masuk
+        await deleteDoc(doc(db, 'pegawai', docRef.id));
+        toast.error('Gagal membuat akun: ' + hasilAuth.pesan);
+      }
 
     } catch (error) {
-      toast.error('Gagal menambahkan personel.');
+      toast.error('Terjadi kesalahan sistem saat menyimpan data.');
       console.error(error);
     } finally {
       setLoading(false);
@@ -164,38 +179,6 @@ export default function ManajemenPersonel() {
     }
   };
 
-  // 🌟 TAMBAHAN 3: Fungsi untuk membuka modal pembuatan akun
-  const bukaModalBuatAkun = (personel: any) => {
-    setDataAkun({ id: personel.id, nama: personel.nama, email: personel.email || '' });
-    setEmailBaru(personel.email || ''); // Jika sudah ada email, tampilkan
-    setPasswordBaru('');
-    setIsModalAkunBuka(true);
-  };
-
-  // 🌟 TAMBAHAN 4: Fungsi untuk mengeksekusi pembuatan akun
-  const handleSimpanAkunBaru = async () => {
-    if (!emailBaru || !passwordBaru) {
-      toast.error("Email dan Password wajib diisi!");
-      return;
-    }
-    if (passwordBaru.length < 6) {
-      toast.error("Password minimal 6 karakter!");
-      return;
-    }
-
-    setLoadingAkun(true);
-    // Memanggil fungsi dari file utility yang kita buat
-    const hasil = await daftarkanAkunPersonel(dataAkun.id, emailBaru, passwordBaru);
-    
-    if (hasil.sukses) {
-      toast.success(hasil.pesan);
-      setIsModalAkunBuka(false);
-    } else {
-      toast.error("Gagal: " + hasil.pesan);
-    }
-    setLoadingAkun(false);
-  };
-
   if (isCheckingAuth) return <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'system-ui, -apple-system, sans-serif' }}>Memeriksa otorisasi Admin...</div>;
 
   return (
@@ -216,10 +199,10 @@ export default function ManajemenPersonel() {
         </button>
       </div>
 
-      {/* Bagian Tambah Personel (Tidak diubah) */}
+      {/* FORM TAMBAH PERSONEL (DIPERBARUI DENGAN EMAIL & PASSWORD) */}
       <div className="card" style={{ padding: '2rem' }}>
         <h2 style={{ margin: '0 0 1.5rem 0', color: '#001f3f', fontSize: '1.3rem', fontWeight: '700', borderBottom: '2px solid #eee', paddingBottom: '0.8rem' }}>
-          Tambah Personel Baru
+          Tambah Personel & Buat Akun Baru
         </h2>
         
         <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -244,6 +227,25 @@ export default function ManajemenPersonel() {
             className="modern-input"
             style={{ flex: 1, minWidth: '150px' }} 
           />
+          
+          {/* Kolom Input Baru untuk Akun */}
+          <input 
+            type="email"
+            value={email} 
+            onChange={(e) => setEmail(e.target.value)} 
+            placeholder="Email Login (Cth: andi@setum.com)"
+            className="modern-input"
+            style={{ flex: 1, minWidth: '220px' }} 
+          />
+          <input 
+            type="text"
+            value={password} 
+            onChange={(e) => setPassword(e.target.value)} 
+            placeholder="Password (Min. 6 Karakter)"
+            className="modern-input"
+            style={{ flex: 1, minWidth: '200px' }} 
+          />
+
           <input 
             id="input-foto"
             type="file" 
@@ -259,7 +261,7 @@ export default function ManajemenPersonel() {
             className="btn-primary"
             style={{ background: '#10b981', minWidth: '160px', boxShadow: loading ? 'none' : '0 4px 6px rgba(16, 185, 129, 0.2)' }}
           >
-            {loading ? 'Menyimpan...' : '+ Tambah Data'}
+            {loading ? 'Menyimpan...' : '+ Tambah Personel & Akun'}
           </button>
         </div>
       </div>
@@ -292,23 +294,15 @@ export default function ManajemenPersonel() {
                   </td>
                   <td style={{ padding: '16px', color: '#111827', fontWeight: '600' }}>
                     {personel.nama}
-                    {/* Menampilkan indikator jika sudah punya akun login */}
-                    {personel.uidAuth && <span style={{ marginLeft: '8px', fontSize: '0.7rem', background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: '4px' }}>Akun Aktif</span>}
+                    <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '2px' }}>
+                      {personel.email ? `✉️ ${personel.email}` : 'Belum ada akun'}
+                    </div>
                   </td>
                   <td style={{ padding: '16px', color: '#4b5563' }}>{personel.pangkat || '-'}</td>
                   <td style={{ padding: '16px', color: '#4b5563' }}>{personel.nrp}</td>
                   <td style={{ padding: '16px', textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                      {/* 🌟 TAMBAHAN 5: Tombol Buat Akun */}
-                      {!personel.uidAuth && (
-                        <button 
-                          onClick={() => bukaModalBuatAkun(personel)} 
-                          style={{ padding: '0.4rem 0.8rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', transition:'0.2s' }}
-                        >
-                          🔑 Buat Akun
-                        </button>
-                      )}
-                      
+                      {/* Tombol Buat Akun sudah dihapus dari sini */}
                       <button 
                         onClick={() => bukaModalEdit(personel)} 
                         style={{ padding: '0.4rem 0.8rem', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', transition:'0.2s' }}
@@ -330,7 +324,7 @@ export default function ManajemenPersonel() {
         </table>
       </div>
 
-      {/* TAMPILAN POP-UP (MODAL) EDIT */}
+      {/* TAMPILAN POP-UP (MODAL) EDIT (Tidak Diubah) */}
       {isModalEditBuka && (
         <div style={{ 
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
@@ -407,68 +401,6 @@ export default function ManajemenPersonel() {
                 style={{ background: '#10b981', padding: '0.7rem 1.2rem' }}
               >
                 {loadingEdit ? 'Menyimpan...' : 'Simpan Perubahan'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 🌟 TAMBAHAN 6: TAMPILAN POP-UP (MODAL) UNTUK BUAT AKUN */}
-      {isModalAkunBuka && (
-        <div style={{ 
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-          backgroundColor: 'rgba(0,0,0,0.6)', 
-          display: 'flex', alignItems: 'center', justifyContent: 'center', 
-          zIndex: 1000, padding: '1rem' 
-        }}>
-          <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
-            <h3 style={{ margin: '0 0 1.5rem 0', color: '#001f3f', borderBottom: '2px solid #eee', paddingBottom: '0.8rem' }}>
-              Buat Akun Login
-            </h3>
-            
-            <p style={{ fontSize: '0.9rem', color: '#6b7280', marginBottom: '1.5rem' }}>
-              Buatkan email dan password untuk <strong>{dataAkun.nama}</strong> agar bisa login ke aplikasi absensi.
-            </p>
-
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', fontWeight: 'bold', color: '#555' }}>Email Login</label>
-              <input 
-                type="email"
-                className="modern-input" 
-                placeholder="contoh: andi@setumpolri.com"
-                style={{ width: '100%', boxSizing: 'border-box' }}
-                value={emailBaru}
-                onChange={(e) => setEmailBaru(e.target.value)}
-              />
-            </div>
-            
-            <div style={{ marginBottom: '2rem' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', fontWeight: 'bold', color: '#555' }}>Password Awal (Min. 6 Karakter)</label>
-              <input 
-                type="text"
-                className="modern-input" 
-                placeholder="contoh: 123456"
-                style={{ width: '100%', boxSizing: 'border-box' }}
-                value={passwordBaru}
-                onChange={(e) => setPasswordBaru(e.target.value)}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button 
-                onClick={() => setIsModalAkunBuka(false)}
-                className="btn-primary"
-                style={{ background: '#e2e8f0', color: '#475569', padding: '0.7rem 1.2rem', boxShadow: 'none' }}
-              >
-                Batal
-              </button>
-              <button 
-                onClick={handleSimpanAkunBaru}
-                disabled={loadingAkun}
-                className="btn-primary"
-                style={{ background: '#3b82f6', padding: '0.7rem 1.2rem' }}
-              >
-                {loadingAkun ? 'Memproses...' : 'Buat Akun'}
               </button>
             </div>
           </div>
