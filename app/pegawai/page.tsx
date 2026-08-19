@@ -23,7 +23,10 @@ export default function ManajemenPegawai() {
 
   // State untuk Modal Edit
   const [isModalEditBuka, setIsModalEditBuka] = useState(false);
-  const [dataEdit, setDataEdit] = useState({ id: '', nama: '', nrp: '', pangkat: '' });
+  // BARU: Menambahkan foto_url ke state dataEdit
+  const [dataEdit, setDataEdit] = useState({ id: '', nama: '', nrp: '', pangkat: '', foto_url: '' }); 
+  // BARU: State khusus untuk menampung file foto saat diedit
+  const [fotoFileEdit, setFotoFileEdit] = useState<File | null>(null); 
   const [loadingEdit, setLoadingEdit] = useState(false);
 
   const EMAIL_ADMIN = "98010786@polri.go.id";
@@ -52,6 +55,13 @@ export default function ManajemenPegawai() {
   const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFotoFile(e.target.files[0]);
+    }
+  };
+
+  // BARU: Fungsi untuk menangani perubahan input file di dalam Modal Edit
+  const handleFotoEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFotoFileEdit(e.target.files[0]);
     }
   };
 
@@ -108,8 +118,10 @@ export default function ManajemenPegawai() {
       id: pegawai.id,
       nama: pegawai.nama,
       nrp: pegawai.nrp,
-      pangkat: pegawai.pangkat || ''
+      pangkat: pegawai.pangkat || '',
+      foto_url: pegawai.foto_url || '' // BARU: Menyimpan URL foto saat ini ke state
     });
+    setFotoFileEdit(null); // BARU: Pastikan form file direset saat modal dibuka
     setIsModalEditBuka(true);
   };
 
@@ -121,11 +133,24 @@ export default function ManajemenPegawai() {
 
     setLoadingEdit(true);
     try {
+      // BARU: Tentukan URL foto yang akan disimpan (default pakai yang lama)
+      let updatedFotoUrl = dataEdit.foto_url;
+
+      // BARU: Jika ada file foto baru yang diunggah, simpan ke Storage dulu
+      if (fotoFileEdit) {
+        const fotoRef = ref(storage, `foto_pegawai/${Date.now()}_${fotoFileEdit.name}`);
+        await uploadBytes(fotoRef, fotoFileEdit);
+        updatedFotoUrl = await getDownloadURL(fotoRef);
+      }
+
+      // BARU: Update dokumen dengan data teks dan foto (baik yang baru maupun yang lama)
       await updateDoc(doc(db, 'pegawai', dataEdit.id), { 
         nama: dataEdit.nama,
         nrp: dataEdit.nrp,
-        pangkat: dataEdit.pangkat
+        pangkat: dataEdit.pangkat,
+        foto_url: updatedFotoUrl 
       });
+
       toast.success('Data pegawai diperbarui!');
       setIsModalEditBuka(false); 
     } catch (error) {
@@ -178,7 +203,7 @@ export default function ManajemenPegawai() {
           <input 
             value={nrp} 
             onChange={(e) => setNrp(e.target.value)} 
-            placeholder="NRP / NIP" /* DIUBAH DI SINI */
+            placeholder="NRP / NIP"
             className="modern-input"
             style={{ flex: 1, minWidth: '150px' }} 
           />
@@ -209,7 +234,7 @@ export default function ManajemenPegawai() {
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>Foto</th>
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>Nama Pegawai</th>
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>Pangkat</th>
-              <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>NRP / NIP</th> {/* DIUBAH DI SINI */}
+              <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>NRP / NIP</th>
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f', textAlign: 'center' }}>Aksi</th>
             </tr>
           </thead>
@@ -262,9 +287,31 @@ export default function ManajemenPegawai() {
           display: 'flex', alignItems: 'center', justifyContent: 'center', 
           zIndex: 1000, padding: '1rem' 
         }}>
-          <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
+          <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', maxHeight: '90vh', overflowY: 'auto' }}>
             <h3 style={{ margin: '0 0 1.5rem 0', color: '#001f3f', borderBottom: '2px solid #eee', paddingBottom: '0.8rem' }}>Edit Data Pegawai</h3>
             
+            {/* BARU: Area Edit Foto dan Pratinjau */}
+            <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', fontWeight: 'bold', color: '#555' }}>Foto Saat Ini</label>
+              <div style={{ marginBottom: '10px' }}>
+                {fotoFileEdit ? (
+                  <img src={URL.createObjectURL(fotoFileEdit)} alt="Preview Baru" style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', margin: '0 auto', border: '2px solid #10b981' }} />
+                ) : dataEdit.foto_url ? (
+                  <img src={dataEdit.foto_url} alt="Foto Lama" style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', margin: '0 auto', border: '2px solid #e5e7eb' }} />
+                ) : (
+                  <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: '#f3f4f6', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '0.8rem' }}>No Pic</div>
+                )}
+              </div>
+              <input 
+                type="file" 
+                accept="image/*"
+                onChange={handleFotoEditChange} 
+                className="modern-input"
+                style={{ width: '100%', boxSizing: 'border-box', fontSize: '0.8rem', padding: '0.5rem' }}
+              />
+              <small style={{ color: '#6b7280', display: 'block', marginTop: '6px' }}>*Kosongkan jika tidak ingin mengubah foto</small>
+            </div>
+
             <div style={{ marginBottom: '1rem' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', fontWeight: 'bold', color: '#555' }}>Nama Lengkap</label>
               <input 
@@ -286,7 +333,7 @@ export default function ManajemenPegawai() {
             </div>
 
             <div style={{ marginBottom: '2rem' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', fontWeight: 'bold', color: '#555' }}>NRP / NIP</label> {/* DIUBAH DI SINI */}
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', fontWeight: 'bold', color: '#555' }}>NRP / NIP</label>
               <input 
                 className="modern-input" 
                 style={{ width: '100%', boxSizing: 'border-box' }}
