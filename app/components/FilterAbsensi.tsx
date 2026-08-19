@@ -62,7 +62,7 @@ export default function FilterAbsensi({
 
       {/* Input Cari Nama */}
       <div style={{ flex: 1, minWidth: '150px' }}>
-        <label className="filter-label">Cari Nama Pegawai</label>
+        <label className="filter-label">Cari Nama Personel</label>
         <input 
           placeholder="Ketik nama di sini..." 
           className="modern-input" 
