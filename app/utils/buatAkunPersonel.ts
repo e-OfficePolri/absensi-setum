@@ -2,28 +2,24 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db, firebaseConfig } from '../firebase'; // Sesuaikan lokasi impor firebase Anda
+import { db, firebaseConfig } from '../firebase'; 
 
-/**
- * Fungsi untuk mendaftarkan akun personel tanpa membuat Admin logout
- */
 export const daftarkanAkunPersonel = async (
   idDokumen: string, 
   emailInput: string, 
   passwordInput: string
 ) => {
   try {
-    // 1. Membuat "Aplikasi Kedua" khusus untuk mendaftarkan user
-    // Menggunakan nama unik (misal: 'PendaftaranApp') agar tidak bertabrakan dengan aplikasi utama
+    // 1. Membuat "Aplikasi Kedua" agar Admin tidak ter-logout
     const appPendaftaran = initializeApp(firebaseConfig, 'PendaftaranApp');
     const authPendaftaran = getAuth(appPendaftaran);
 
-    // 2. Mendaftarkan email dan password ke Firebase Authentication
+    // 2. Mendaftarkan email dan password
     const userCredential = await createUserWithEmailAndPassword(authPendaftaran, emailInput, passwordInput);
     const userBaru = userCredential.user;
 
-    // 3. Menyimpan Email dan UID (ID Unik) ke data Firestore personel tersebut
-    const referensiPersonel = doc(db, 'pegawai', idDokumen); // Pastikan nama koleksinya 'pegawai' atau sesuaikan dengan database Anda
+    // 3. Menyimpan Email dan UID ke database pegawai
+    const referensiPersonel = doc(db, 'pegawai', idDokumen); 
     await updateDoc(referensiPersonel, {
       email: emailInput,
       uidAuth: userBaru.uid
