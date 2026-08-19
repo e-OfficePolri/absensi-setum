@@ -23,9 +23,11 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, ChartTitle, Tooltip, Le
 export default function Home() {
   const router = useRouter();
   const { isCheckingAuth, isAdmin, handleLogout } = useAuth();
+  
+  // KITA UBAH DI SINI: Menggunakan alias daftarPersonel dari daftarPegawai bawaan hook
   const {
     nama, setNama, statusKehadiran, setStatusKehadiran,
-    loading, daftarAbsen, daftarPegawai,
+    loading, daftarAbsen, daftarPegawai: daftarPersonel,
     kameraTerbuka, setKameraTerbuka, webcamRef,
     handleAbsen, handleEdit, handleHapus
   } = useAbsensi(isCheckingAuth);
@@ -72,6 +74,7 @@ export default function Home() {
     const absenBulan = absen.waktu_masuk?.substring(0, 7); 
     const cocokTanggal = !filterTanggal || (absenTanggal === filterTanggal);
     const cocokBulan = !filterBulan || (absenBulan === filterBulan);
+    // Catatan: absen.nama_pegawai tetap digunakan jika itu adalah nama field di database Anda
     const cocokNama = !kataKunci || absen.nama_pegawai.toLowerCase().includes(kataKunci.toLowerCase());
     return cocokTanggal && cocokBulan && cocokNama;
   });
@@ -85,14 +88,16 @@ export default function Home() {
   useEffect(() => { setHalamanSaatIni(1); }, [filterTanggal, filterBulan, kataKunci]);
 
   const tanggalHariIni = new Date().toISOString().split('T')[0];
-  const absenPegawaiHariIni = daftarAbsen.find((a) => a.nama_pegawai === nama && a.waktu_masuk?.startsWith(tanggalHariIni));
+  
+  // KITA UBAH DI SINI: Variabel absenPegawaiHariIni menjadi absenPersonelHariIni
+  const absenPersonelHariIni = daftarAbsen.find((a) => a.nama_pegawai === nama && a.waktu_masuk?.startsWith(tanggalHariIni));
   
   let teksTombol = 'Absen Masuk';
   let tombolDisable = loading;
   let warnaTombol = '#001f3f'; 
 
-  if (absenPegawaiHariIni) {
-    if (absenPegawaiHariIni.waktu_pulang) {
+  if (absenPersonelHariIni) {
+    if (absenPersonelHariIni.waktu_pulang) {
       teksTombol = 'Selesai (Sudah Absen)';
       tombolDisable = true;
       warnaTombol = '#6c757d'; 
@@ -102,7 +107,7 @@ export default function Home() {
     }
   }
 
-  const butuhKamera = (!absenPegawaiHariIni && (statusKehadiran === 'Hadir' || statusKehadiran === 'Dinas Luar')) || (absenPegawaiHariIni && !absenPegawaiHariIni.waktu_pulang);
+  const butuhKamera = (!absenPersonelHariIni && (statusKehadiran === 'Hadir' || statusKehadiran === 'Dinas Luar')) || (absenPersonelHariIni && !absenPersonelHariIni.waktu_pulang);
 
   if (isCheckingAuth) return <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'system-ui, -apple-system, sans-serif' }}>Memeriksa keamanan...</div>;
 
@@ -110,7 +115,6 @@ export default function Home() {
     <main>
       <Toaster position="top-center" />
       
-      {/* Header Area menggunakan class CSS baru */}
       <div className="header-container">
         <div className="logo-wrapper">
           <div className="logo-icon">🏢</div>
@@ -136,11 +140,12 @@ export default function Home() {
         webcamRef={webcamRef}
         nama={nama}
         setNama={setNama}
-        daftarPegawai={daftarPegawai}
-        absenPegawaiHariIni={absenPegawaiHariIni}
+        // KITA UBAH DI SINI: Tetap mengirimkan properti dengan nama yang diminta komponen anak, tapi nilainya dari variabel baru
+        daftarPegawai={daftarPersonel}
+        absenPegawaiHariIni={absenPersonelHariIni}
         statusKehadiran={statusKehadiran}
         setStatusKehadiran={setStatusKehadiran}
-        handleAbsen={() => handleAbsen(absenPegawaiHariIni, tanggalHariIni)}
+        handleAbsen={() => handleAbsen(absenPersonelHariIni, tanggalHariIni)}
         tombolDisable={tombolDisable}
         loading={loading}
         teksTombol={teksTombol}
