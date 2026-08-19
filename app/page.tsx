@@ -16,6 +16,7 @@ import { hitungJarakMeter } from './utils/helper';
 import { useAuth } from './hooks/useAuth';
 import { useAbsensi } from './hooks/useAbsensi';
 import { useLaporan } from './hooks/useLaporan';
+import FilterAbsensi from './components/FilterAbsensi';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ChartTitle, Tooltip, Legend);
 
@@ -146,47 +147,14 @@ export default function Home() {
         warnaTombol={warnaTombol}
       />
 
-      {/* Area Filter menggunakan class CSS baru */}
-      <div className="filter-container">
-        <div>
-          <label className="filter-label">Filter Bulan</label>
-          <input 
-            type="month" 
-            className="modern-input" 
-            value={filterBulan} 
-            onChange={(e) => { setFilterBulan(e.target.value); setFilterTanggal(''); }} 
-            style={{ width: '150px' }} 
-          />
-        </div>
-        <div>
-          <label className="filter-label">Filter Tanggal</label>
-          <input 
-            type="date" 
-            className="modern-input" 
-            value={filterTanggal} 
-            onChange={(e) => { setFilterTanggal(e.target.value); setFilterBulan(''); }} 
-            style={{ width: '140px' }} 
-          />
-        </div>
-        <div style={{ flex: 1, minWidth: '150px' }}>
-          <label className="filter-label">Cari Nama Pegawai</label>
-          <input 
-            placeholder="Ketik nama di sini..." 
-            className="modern-input" 
-            value={kataKunci} 
-            onChange={(e) => setKataKunci(e.target.value)} 
-            style={{ width: '100%', boxSizing: 'border-box' }} 
-          />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-          <button 
-            onClick={() => { setFilterBulan(''); setFilterTanggal(''); setKataKunci(''); }} 
-            className="btn-secondary"
-          >
-            Reset Filter
-          </button>
-        </div>
-      </div>
+      <FilterAbsensi 
+         filterBulan={filterBulan}
+         setFilterBulan={setFilterBulan}
+         filterTanggal={filterTanggal}
+         setFilterTanggal={setFilterTanggal}
+         kataKunci={kataKunci}
+         setKataKunci={setKataKunci}
+       />
 
       {isAdmin && (
         <div className="export-container">
