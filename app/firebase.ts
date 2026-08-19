@@ -6,7 +6,7 @@ import { getStorage } from 'firebase/storage';
 
 // 1. Konfigurasi Firebase
 // Nilai-nilai ini diambil dari file .env.local untuk menjaga keamanan data rahasia
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
