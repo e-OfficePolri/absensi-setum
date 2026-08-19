@@ -1,11 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-// Tambahkan storage ke dalam import firebase
 import { db, auth, storage } from '../firebase'; 
 import { collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc, updateDoc } from 'firebase/firestore'; 
 import { onAuthStateChanged } from 'firebase/auth'; 
-// Import fungsi untuk upload ke Firebase Storage
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
@@ -14,14 +12,19 @@ export default function ManajemenPegawai() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const router = useRouter();
 
+  // State untuk form tambah data
   const [nama, setNama] = useState('');
   const [nrp, setNrp] = useState('');
-  // 1. State baru untuk pangkat dan foto
   const [pangkat, setPangkat] = useState('');
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   
   const [loading, setLoading] = useState(false);
   const [daftarPegawai, setDaftarPegawai] = useState<any[]>([]);
+
+  // 1. STATE BARU UNTUK MODAL EDIT
+  const [isModalEditBuka, setIsModalEditBuka] = useState(false);
+  const [dataEdit, setDataEdit] = useState({ id: '', nama: '', nrp: '', pangkat: '' });
+  const [loadingEdit, setLoadingEdit] = useState(false);
 
   const EMAIL_ADMIN = "98010786@polri.go.id";
 
@@ -46,7 +49,6 @@ export default function ManajemenPegawai() {
     return () => unsubscribeData();
   }, [isCheckingAuth]);
 
-  // Fungsi menangani perubahan file foto
   const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFotoFile(e.target.files[0]);
@@ -54,7 +56,6 @@ export default function ManajemenPegawai() {
   };
 
   const handleTambahPegawai = async () => {
-    // 2. Validasi tambahan untuk pangkat dan foto
     if (!nama || !nrp || !pangkat) { 
       toast.error('Mohon isi Nama, NRP, dan Pangkat!'); 
       return; 
@@ -66,31 +67,24 @@ export default function ManajemenPegawai() {
 
     setLoading(true);
     try {
-      // 3. Proses Upload Foto ke Firebase Storage
-      // Membuat referensi lokasi file (folder 'foto_pegawai')
       const fotoRef = ref(storage, `foto_pegawai/${Date.now()}_${fotoFile.name}`);
-      // Mengunggah file
       await uploadBytes(fotoRef, fotoFile);
-      // Mendapatkan URL (link) foto yang sudah terunggah
       const fotoUrl = await getDownloadURL(fotoRef);
 
-      // 4. Menyimpan data lengkap ke Firestore
       await addDoc(collection(db, 'pegawai'), { 
         nama: nama, 
         nrp: nrp,
         pangkat: pangkat,
-        foto_url: fotoUrl, // Menyimpan link foto
+        foto_url: fotoUrl,
         dibuat_pada: new Date().toISOString()
       });
 
       toast.success('Pegawai berhasil ditambahkan!');
       
-      // Kosongkan form kembali
       setNama('');
       setNrp('');
       setPangkat('');
       setFotoFile(null);
-      // Reset input file secara manual
       const fileInput = document.getElementById('input-foto') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
 
@@ -109,26 +103,44 @@ export default function ManajemenPegawai() {
     }
   };
 
-  // Tambahkan pangkatLama ke dalam parameter edit
-  const handleEdit = async (id: string, namaLama: string, nrpLama: string, pangkatLama: string) => {
-    const namaBaru = window.prompt("Ubah Nama Pegawai:", namaLama);
-    const nrpBaru = window.prompt("Ubah NRP:", nrpLama);
-    const pangkatBaru = window.prompt("Ubah Pangkat:", pangkatLama);
-    
-    if (namaBaru && nrpBaru && pangkatBaru) {
-      await updateDoc(doc(db, 'pegawai', id), { 
-        nama: namaBaru,
-        nrp: nrpBaru,
-        pangkat: pangkatBaru
+  // 2. FUNGSI UNTUK MEMBUKA MODAL (TIDAK LAGI PAKAI WINDOW.PROMPT)
+  const bukaModalEdit = (pegawai: any) => {
+    setDataEdit({
+      id: pegawai.id,
+      nama: pegawai.nama,
+      nrp: pegawai.nrp,
+      pangkat: pegawai.pangkat || ''
+    });
+    setIsModalEditBuka(true);
+  };
+
+  // 3. FUNGSI BARU UNTUK MENYIMPAN DATA DARI MODAL KE DATABASE
+  const simpanPerubahanEdit = async () => {
+    if (!dataEdit.nama || !dataEdit.nrp || !dataEdit.pangkat) {
+      toast.error("Semua kolom harus diisi!");
+      return;
+    }
+
+    setLoadingEdit(true);
+    try {
+      await updateDoc(doc(db, 'pegawai', dataEdit.id), { 
+        nama: dataEdit.nama,
+        nrp: dataEdit.nrp,
+        pangkat: dataEdit.pangkat
       });
       toast.success('Data pegawai diperbarui!');
+      setIsModalEditBuka(false); // Tutup modal setelah sukses
+    } catch (error) {
+      toast.error('Gagal memperbarui data.');
+    } finally {
+      setLoadingEdit(false);
     }
   };
 
   if (isCheckingAuth) return <div style={{ padding: '2rem', textAlign: 'center', fontFamily: 'system-ui, -apple-system, sans-serif' }}>Memeriksa otorisasi Admin...</div>;
 
   return (
-    <main>
+    <main style={{ position: 'relative' }}>
       <style dangerouslySetInnerHTML={{__html: `
         .table-row:hover { background-color: #f1f8ff; transition: 0.3s; }
       `}} />
@@ -150,7 +162,6 @@ export default function ManajemenPegawai() {
           Tambah Pegawai Baru
         </h2>
         
-        {/* Form diperbarui dengan Pangkat dan Foto */}
         <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'center' }}>
           <input 
             value={nama} 
@@ -169,7 +180,7 @@ export default function ManajemenPegawai() {
           <input 
             value={nrp} 
             onChange={(e) => setNrp(e.target.value)} 
-            placeholder="NRP / NIP" 
+            placeholder="NRP / NIK" 
             className="modern-input"
             style={{ flex: 1, minWidth: '150px' }} 
           />
@@ -224,8 +235,9 @@ export default function ManajemenPegawai() {
                   <td style={{ padding: '16px', color: '#4b5563' }}>{pegawai.nrp}</td>
                   <td style={{ padding: '16px', textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                      {/* Tombol Edit sekarang memanggil fungsi bukaModalEdit */}
                       <button 
-                        onClick={() => handleEdit(pegawai.id, pegawai.nama, pegawai.nrp, pegawai.pangkat || '')} 
+                        onClick={() => bukaModalEdit(pegawai)} 
                         style={{ padding: '0.4rem 0.8rem', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', transition:'0.2s' }}
                       >
                         Edit
@@ -244,6 +256,69 @@ export default function ManajemenPegawai() {
           </tbody>
         </table>
       </div>
+
+      {/* 4. TAMPILAN POP-UP (MODAL) EDIT */}
+      {isModalEditBuka && (
+        <div style={{ 
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
+          backgroundColor: 'rgba(0,0,0,0.6)', 
+          display: 'flex', alignItems: 'center', justifyContent: 'center', 
+          zIndex: 1000, padding: '1rem' 
+        }}>
+          <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
+            <h3 style={{ margin: '0 0 1.5rem 0', color: '#001f3f', borderBottom: '2px solid #eee', paddingBottom: '0.8rem' }}>Edit Data Pegawai</h3>
+            
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', fontWeight: 'bold', color: '#555' }}>Nama Lengkap</label>
+              <input 
+                className="modern-input" 
+                style={{ width: '100%', boxSizing: 'border-box' }}
+                value={dataEdit.nama}
+                onChange={(e) => setDataEdit({...dataEdit, nama: e.target.value})}
+              />
+            </div>
+            
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', fontWeight: 'bold', color: '#555' }}>Pangkat</label>
+              <input 
+                className="modern-input" 
+                style={{ width: '100%', boxSizing: 'border-box' }}
+                value={dataEdit.pangkat}
+                onChange={(e) => setDataEdit({...dataEdit, pangkat: e.target.value})}
+              />
+            </div>
+
+            <div style={{ marginBottom: '2rem' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', fontWeight: 'bold', color: '#555' }}>NRP / NIP</label>
+              <input 
+                className="modern-input" 
+                style={{ width: '100%', boxSizing: 'border-box' }}
+                value={dataEdit.nrp}
+                onChange={(e) => setDataEdit({...dataEdit, nrp: e.target.value})}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button 
+                onClick={() => setIsModalEditBuka(false)}
+                className="btn-primary"
+                style={{ background: '#e2e8f0', color: '#475569', padding: '0.7rem 1.2rem', boxShadow: 'none' }}
+              >
+                Batal
+              </button>
+              <button 
+                onClick={simpanPerubahanEdit}
+                disabled={loadingEdit}
+                className="btn-primary"
+                style={{ background: '#10b981', padding: '0.7rem 1.2rem' }}
+              >
+                {loadingEdit ? 'Menyimpan...' : 'Simpan Perubahan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </main>
   );
 }
