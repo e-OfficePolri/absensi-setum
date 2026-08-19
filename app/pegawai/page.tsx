@@ -8,7 +8,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 
-export default function ManajemenPegawai() {
+export default function ManajemenPersonel() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const router = useRouter();
 
@@ -19,13 +19,11 @@ export default function ManajemenPegawai() {
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   
   const [loading, setLoading] = useState(false);
-  const [daftarPegawai, setDaftarPegawai] = useState<any[]>([]);
+  const [daftarPersonel, setDaftarPersonel] = useState<any[]>([]);
 
   // State untuk Modal Edit
   const [isModalEditBuka, setIsModalEditBuka] = useState(false);
-  // BARU: Menambahkan foto_url ke state dataEdit
   const [dataEdit, setDataEdit] = useState({ id: '', nama: '', nrp: '', pangkat: '', foto_url: '' }); 
-  // BARU: State khusus untuk menampung file foto saat diedit
   const [fotoFileEdit, setFotoFileEdit] = useState<File | null>(null); 
   const [loadingEdit, setLoadingEdit] = useState(false);
 
@@ -45,9 +43,10 @@ export default function ManajemenPegawai() {
 
   useEffect(() => {
     if (isCheckingAuth) return; 
+    // Catatan: Koleksi database tetap bernama 'pegawai' agar data lama tidak hilang
     const q = query(collection(db, 'pegawai'), orderBy('nama', 'asc'));
     const unsubscribeData = onSnapshot(q, (snapshot) => {
-      setDaftarPegawai(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+      setDaftarPersonel(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
     });
     return () => unsubscribeData();
   }, [isCheckingAuth]);
@@ -58,20 +57,19 @@ export default function ManajemenPegawai() {
     }
   };
 
-  // BARU: Fungsi untuk menangani perubahan input file di dalam Modal Edit
   const handleFotoEditChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFotoFileEdit(e.target.files[0]);
     }
   };
 
-  const handleTambahPegawai = async () => {
+  const handleTambahPersonel = async () => {
     if (!nama || !nrp || !pangkat) { 
       toast.error('Mohon isi Nama, NRP, dan Pangkat!'); 
       return; 
     }
     if (!fotoFile) {
-      toast.error('Mohon unggah foto pegawai!'); 
+      toast.error('Mohon unggah foto personel!'); 
       return; 
     }
 
@@ -89,7 +87,7 @@ export default function ManajemenPegawai() {
         dibuat_pada: new Date().toISOString()
       });
 
-      toast.success('Pegawai berhasil ditambahkan!');
+      toast.success('Personel berhasil ditambahkan!');
       
       setNama('');
       setNrp('');
@@ -99,7 +97,7 @@ export default function ManajemenPegawai() {
       if (fileInput) fileInput.value = '';
 
     } catch (error) {
-      toast.error('Gagal menambahkan pegawai.');
+      toast.error('Gagal menambahkan personel.');
       console.error(error);
     } finally {
       setLoading(false);
@@ -107,21 +105,21 @@ export default function ManajemenPegawai() {
   };
 
   const handleHapus = async (id: string) => {
-    if (window.confirm("Yakin ingin menghapus pegawai ini?")) {
+    if (window.confirm("Yakin ingin menghapus personel ini?")) {
       await deleteDoc(doc(db, 'pegawai', id));
-      toast.success('Data pegawai dihapus!');
+      toast.success('Data personel dihapus!');
     }
   };
 
-  const bukaModalEdit = (pegawai: any) => {
+  const bukaModalEdit = (personel: any) => {
     setDataEdit({
-      id: pegawai.id,
-      nama: pegawai.nama,
-      nrp: pegawai.nrp,
-      pangkat: pegawai.pangkat || '',
-      foto_url: pegawai.foto_url || '' // BARU: Menyimpan URL foto saat ini ke state
+      id: personel.id,
+      nama: personel.nama,
+      nrp: personel.nrp,
+      pangkat: personel.pangkat || '',
+      foto_url: personel.foto_url || '' 
     });
-    setFotoFileEdit(null); // BARU: Pastikan form file direset saat modal dibuka
+    setFotoFileEdit(null); 
     setIsModalEditBuka(true);
   };
 
@@ -133,17 +131,14 @@ export default function ManajemenPegawai() {
 
     setLoadingEdit(true);
     try {
-      // BARU: Tentukan URL foto yang akan disimpan (default pakai yang lama)
       let updatedFotoUrl = dataEdit.foto_url;
 
-      // BARU: Jika ada file foto baru yang diunggah, simpan ke Storage dulu
       if (fotoFileEdit) {
         const fotoRef = ref(storage, `foto_pegawai/${Date.now()}_${fotoFileEdit.name}`);
         await uploadBytes(fotoRef, fotoFileEdit);
         updatedFotoUrl = await getDownloadURL(fotoRef);
       }
 
-      // BARU: Update dokumen dengan data teks dan foto (baik yang baru maupun yang lama)
       await updateDoc(doc(db, 'pegawai', dataEdit.id), { 
         nama: dataEdit.nama,
         nrp: dataEdit.nrp,
@@ -151,7 +146,7 @@ export default function ManajemenPegawai() {
         foto_url: updatedFotoUrl 
       });
 
-      toast.success('Data pegawai diperbarui!');
+      toast.success('Data personel diperbarui!');
       setIsModalEditBuka(false); 
     } catch (error) {
       toast.error('Gagal memperbarui data.');
@@ -170,7 +165,7 @@ export default function ManajemenPegawai() {
       <Toaster position="top-center" />
       
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', paddingBottom: '1rem', borderBottom: '3px solid #001f3f' }}>
-        <h1 className="page-title">Manajemen Data Pegawai</h1>
+        <h1 className="page-title">Manajemen Data Personel</h1>
         <button 
           onClick={() => router.push('/')} 
           className="btn-primary" 
@@ -182,7 +177,7 @@ export default function ManajemenPegawai() {
 
       <div className="card" style={{ padding: '2rem' }}>
         <h2 style={{ margin: '0 0 1.5rem 0', color: '#001f3f', fontSize: '1.3rem', fontWeight: '700', borderBottom: '2px solid #eee', paddingBottom: '0.8rem' }}>
-          Tambah Pegawai Baru
+          Tambah Personel Baru
         </h2>
         
         <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -217,7 +212,7 @@ export default function ManajemenPegawai() {
           />
           
           <button 
-            onClick={handleTambahPegawai} 
+            onClick={handleTambahPersonel} 
             disabled={loading} 
             className="btn-primary"
             style={{ background: '#10b981', minWidth: '160px', boxShadow: loading ? 'none' : '0 4px 6px rgba(16, 185, 129, 0.2)' }}
@@ -232,40 +227,40 @@ export default function ManajemenPegawai() {
           <thead>
             <tr style={{ background: '#001f3f', color: 'white' }}>
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>Foto</th>
-              <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>Nama Pegawai</th>
+              <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>Nama Personel</th>
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>Pangkat</th>
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>NRP / NIP</th>
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f', textAlign: 'center' }}>Aksi</th>
             </tr>
           </thead>
           <tbody>
-            {daftarPegawai.length === 0 ? (
+            {daftarPersonel.length === 0 ? (
               <tr>
-                <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: '#6b7280', fontStyle: 'italic' }}>Belum ada data pegawai.</td>
+                <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: '#6b7280', fontStyle: 'italic' }}>Belum ada data personel.</td>
               </tr>
             ) : (
-              daftarPegawai.map((pegawai) => (
-                <tr key={pegawai.id} className="table-row" style={{ borderBottom: '1px solid #f3f4f6' }}>
+              daftarPersonel.map((personel) => (
+                <tr key={personel.id} className="table-row" style={{ borderBottom: '1px solid #f3f4f6' }}>
                   <td style={{ padding: '16px' }}>
-                    {pegawai.foto_url ? (
-                      <img src={pegawai.foto_url} alt={pegawai.nama} style={{ width: '45px', height: '45px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #e5e7eb' }} />
+                    {personel.foto_url ? (
+                      <img src={personel.foto_url} alt={personel.nama} style={{ width: '45px', height: '45px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #e5e7eb' }} />
                     ) : (
                       <div style={{ width: '45px', height: '45px', borderRadius: '50%', backgroundColor: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '0.8rem' }}>No Pic</div>
                     )}
                   </td>
-                  <td style={{ padding: '16px', color: '#111827', fontWeight: '600' }}>{pegawai.nama}</td>
-                  <td style={{ padding: '16px', color: '#4b5563' }}>{pegawai.pangkat || '-'}</td>
-                  <td style={{ padding: '16px', color: '#4b5563' }}>{pegawai.nrp}</td>
+                  <td style={{ padding: '16px', color: '#111827', fontWeight: '600' }}>{personel.nama}</td>
+                  <td style={{ padding: '16px', color: '#4b5563' }}>{personel.pangkat || '-'}</td>
+                  <td style={{ padding: '16px', color: '#4b5563' }}>{personel.nrp}</td>
                   <td style={{ padding: '16px', textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                       <button 
-                        onClick={() => bukaModalEdit(pegawai)} 
+                        onClick={() => bukaModalEdit(personel)} 
                         style={{ padding: '0.4rem 0.8rem', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', transition:'0.2s' }}
                       >
                         Edit
                       </button>
                       <button 
-                        onClick={() => handleHapus(pegawai.id)} 
+                        onClick={() => handleHapus(personel.id)} 
                         style={{ padding: '0.4rem 0.8rem', background: '#ef4444', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', transition:'0.2s' }}
                       >
                         Hapus
@@ -288,9 +283,8 @@ export default function ManajemenPegawai() {
           zIndex: 1000, padding: '1rem' 
         }}>
           <div style={{ background: 'white', padding: '2rem', borderRadius: '12px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3 style={{ margin: '0 0 1.5rem 0', color: '#001f3f', borderBottom: '2px solid #eee', paddingBottom: '0.8rem' }}>Edit Data Pegawai</h3>
+            <h3 style={{ margin: '0 0 1.5rem 0', color: '#001f3f', borderBottom: '2px solid #eee', paddingBottom: '0.8rem' }}>Edit Data Personel</h3>
             
-            {/* BARU: Area Edit Foto dan Pratinjau */}
             <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', fontWeight: 'bold', color: '#555' }}>Foto Saat Ini</label>
               <div style={{ marginBottom: '10px' }}>
