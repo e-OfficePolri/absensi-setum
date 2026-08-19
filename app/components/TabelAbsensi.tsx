@@ -29,7 +29,8 @@ export default function TabelAbsensi({
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ background: '#001f3f', color: 'white' }}>
-              <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>Nama Pegawai</th>
+              {/* KITA UBAH DI SINI: Mengubah teks judul kolom menjadi Personel */}
+              <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>Nama Personel</th>
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>Status</th>
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f', textAlign: 'center' }}>Masuk</th>
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f', textAlign: 'center' }}>Pulang</th>
@@ -45,6 +46,7 @@ export default function TabelAbsensi({
             ) : (
               dataTampil.map((a) => (
                 <tr key={a.id} className="table-row" style={{ borderBottom: '1px solid #f3f4f6' }}>
+                  {/* PENTING: a.nama_pegawai tidak diubah karena ini adalah kunci data dari database */}
                   <td style={{ padding: '16px', color: '#111827', fontWeight: '500' }}>{a.nama_pegawai}</td>
                   <td style={{ padding: '16px' }}>
                     <span style={{ 
