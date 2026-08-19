@@ -21,7 +21,7 @@ export default function ManajemenPegawai() {
   const [loading, setLoading] = useState(false);
   const [daftarPegawai, setDaftarPegawai] = useState<any[]>([]);
 
-  // 1. STATE BARU UNTUK MODAL EDIT
+  // State untuk Modal Edit
   const [isModalEditBuka, setIsModalEditBuka] = useState(false);
   const [dataEdit, setDataEdit] = useState({ id: '', nama: '', nrp: '', pangkat: '' });
   const [loadingEdit, setLoadingEdit] = useState(false);
@@ -103,7 +103,6 @@ export default function ManajemenPegawai() {
     }
   };
 
-  // 2. FUNGSI UNTUK MEMBUKA MODAL (TIDAK LAGI PAKAI WINDOW.PROMPT)
   const bukaModalEdit = (pegawai: any) => {
     setDataEdit({
       id: pegawai.id,
@@ -114,7 +113,6 @@ export default function ManajemenPegawai() {
     setIsModalEditBuka(true);
   };
 
-  // 3. FUNGSI BARU UNTUK MENYIMPAN DATA DARI MODAL KE DATABASE
   const simpanPerubahanEdit = async () => {
     if (!dataEdit.nama || !dataEdit.nrp || !dataEdit.pangkat) {
       toast.error("Semua kolom harus diisi!");
@@ -129,7 +127,7 @@ export default function ManajemenPegawai() {
         pangkat: dataEdit.pangkat
       });
       toast.success('Data pegawai diperbarui!');
-      setIsModalEditBuka(false); // Tutup modal setelah sukses
+      setIsModalEditBuka(false); 
     } catch (error) {
       toast.error('Gagal memperbarui data.');
     } finally {
@@ -180,7 +178,7 @@ export default function ManajemenPegawai() {
           <input 
             value={nrp} 
             onChange={(e) => setNrp(e.target.value)} 
-            placeholder="NRP / NIK" 
+            placeholder="NRP / NIP" /* DIUBAH DI SINI */
             className="modern-input"
             style={{ flex: 1, minWidth: '150px' }} 
           />
@@ -211,7 +209,7 @@ export default function ManajemenPegawai() {
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>Foto</th>
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>Nama Pegawai</th>
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>Pangkat</th>
-              <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>NRP / NIP</th>
+              <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>NRP / NIP</th> {/* DIUBAH DI SINI */}
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f', textAlign: 'center' }}>Aksi</th>
             </tr>
           </thead>
@@ -235,7 +233,6 @@ export default function ManajemenPegawai() {
                   <td style={{ padding: '16px', color: '#4b5563' }}>{pegawai.nrp}</td>
                   <td style={{ padding: '16px', textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                      {/* Tombol Edit sekarang memanggil fungsi bukaModalEdit */}
                       <button 
                         onClick={() => bukaModalEdit(pegawai)} 
                         style={{ padding: '0.4rem 0.8rem', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', transition:'0.2s' }}
@@ -257,7 +254,7 @@ export default function ManajemenPegawai() {
         </table>
       </div>
 
-      {/* 4. TAMPILAN POP-UP (MODAL) EDIT */}
+      {/* TAMPILAN POP-UP (MODAL) EDIT */}
       {isModalEditBuka && (
         <div style={{ 
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
@@ -289,7 +286,7 @@ export default function ManajemenPegawai() {
             </div>
 
             <div style={{ marginBottom: '2rem' }}>
-              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', fontWeight: 'bold', color: '#555' }}>NRP / NIP</label>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', fontWeight: 'bold', color: '#555' }}>NRP / NIP</label> {/* DIUBAH DI SINI */}
               <input 
                 className="modern-input" 
                 style={{ width: '100%', boxSizing: 'border-box' }}
