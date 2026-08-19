@@ -200,7 +200,7 @@ export default function ManajemenPegawai() {
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>Foto</th>
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>Nama Pegawai</th>
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>Pangkat</th>
-              <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>NRP / NIK</th>
+              <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f' }}>NRP / NIP</th>
               <th style={{ padding: '16px', fontWeight: '600', borderBottom: '2px solid #001f3f', textAlign: 'center' }}>Aksi</th>
             </tr>
           </thead>
