@@ -37,7 +37,7 @@ export default function DashboardAdmin({
           onClick={() => router.push('/pegawai')} 
           style={{ padding: '0.6rem 1.2rem', background: '#17a2b8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(23, 162, 184, 0.3)' }}
         >
-          ⚙️ Kelola Pegawai
+          ⚙️ Kelola Personel
         </button>
       </div>
       
