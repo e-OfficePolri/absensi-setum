@@ -3,6 +3,7 @@ import React from 'react';
 import Webcam from 'react-webcam';
 
 // Ini adalah "Props", daftar data yang dibutuhkan form ini dari luar
+// Catatan: Nama props (daftarPegawai, absenPegawaiHariIni) dipertahankan agar tidak merusak page.tsx
 interface FormAbsensiProps {
   butuhKamera: boolean | undefined;
   kameraTerbuka: boolean;
@@ -10,7 +11,7 @@ interface FormAbsensiProps {
   webcamRef: React.RefObject<Webcam>;
   nama: string;
   setNama: (nama: string) => void;
-  daftarPegawai: any[];
+  daftarPegawai: any[]; 
   absenPegawaiHariIni: any;
   statusKehadiran: string;
   setStatusKehadiran: (status: string) => void;
@@ -76,9 +77,12 @@ export default function FormAbsensi({
       {/* Area Input (Nama, Status, Tombol Absen) */}
       <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
         <select className="modern-input" value={nama} onChange={(e) => setNama(e.target.value)} style={{ padding: '0.9rem', flex: 1, minWidth: '220px', borderRadius: '8px', border: '1px solid #d1d5db', background: 'white', fontSize: '1rem', color: '#333' }}>
-          <option value="" disabled>-- Pilih Nama Pegawai --</option>
-          {daftarPegawai.map((pegawai) => (
-            <option key={pegawai.id} value={pegawai.nama}>{pegawai.nama} - {pegawai.nrp}</option>
+          {/* KITA UBAH DI SINI: Teks placeholder diubah menjadi Personel */}
+          <option value="" disabled>-- Pilih Nama Personel --</option>
+          
+          {/* KITA UBAH DI SINI: Variabel map diubah menjadi personel */}
+          {daftarPegawai.map((personel) => (
+            <option key={personel.id} value={personel.nama}>{personel.nama} - {personel.nrp}</option>
           ))}
         </select>
 
