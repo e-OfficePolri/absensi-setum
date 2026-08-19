@@ -169,7 +169,7 @@ export default function ManajemenPegawai() {
           <input 
             value={nrp} 
             onChange={(e) => setNrp(e.target.value)} 
-            placeholder="NRP / NIK" 
+            placeholder="NRP / NIP" 
             className="modern-input"
             style={{ flex: 1, minWidth: '150px' }} 
           />
